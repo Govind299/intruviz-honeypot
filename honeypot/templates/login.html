@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corporate Portal - Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="logo">
+                <h1>🏢 Corporate Portal</h1>
+                <p>Secure Access Gateway</p>
+            </div>
+            
+            {% if error %}
+            <div class="error-message">
+                <span class="error-icon">⚠️</span>
+                {{ error }}
+            </div>
+            {% endif %}
+            
+            <form id="loginForm" method="POST" action="/login">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        required 
+                        placeholder="Enter your username"
+                        autocomplete="username"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        required 
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="remember" value="1">
+                        <span class="checkmark"></span>
+                        Remember me
+                    </label>
+                </div>
+                
+                <button type="submit" class="login-btn">
+                    <span class="btn-text">Sign In</span>
+                    <span class="btn-loading" style="display: none;">Signing in...</span>
+                </button>
+            </form>
+            
+            <div class="footer-links">
+                <a href="#" onclick="captureEvent('forgot_password_click')">Forgot password?</a>
+                <span class="separator">|</span>
+                <a href="#" onclick="captureEvent('need_help_click')">Need help?</a>
+            </div>
+            
+            <div class="security-notice">
+                <small>
+                    🔒 This is a secure connection. Your information is protected.
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Include JavaScript for client-side event capture -->
+    <script src="{{ url_for('static', filename='js/honeypot.js') }}"></script>
+</body>
+</html>

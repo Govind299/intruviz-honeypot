@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  honeypot:
+    build: .
+    container_name: web_honeypot
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount data directory for persistent logs
+      - ./data:/app/honeypot/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=50m
+    networks:
+      - honeypot_network
+    labels:
+      - "com.example.description=Web Application Honeypot"
+      - "com.example.department=Security"
+      - "com.example.label-with-value=lab-use-only"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  honeypot_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  honeypot_data:
+    driver: local
