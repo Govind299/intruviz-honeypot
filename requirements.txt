@@ -1,3 +1,27 @@
-Flask>=2.3.0
-Werkzeug>=2.3.0
-markupsafe>=2.1.0
+# Honeypot Project Requirements - All Modules
+# Module A-C: Basic honeypot, logging, and enrichment
+# Module D: Operator Dashboard and Real-time Analytics
+
+# Core Flask framework
+Flask>=2.0.0
+Werkzeug>=2.0.0
+
+# Real-time WebSocket support (Module D)
+Flask-SocketIO>=5.0.0
+eventlet>=0.33.0
+
+# HTTP requests (for geolocation APIs)
+requests>=2.25.0
+
+# Database and JSON handling
+sqlite3  # Built-in with Python
+
+# Development and testing
+pytest>=6.0.0
+pytest-flask>=1.2.0
+
+# Optional environment management
+python-dotenv>=0.19.0
+
+# Chart.js and Leaflet are loaded via CDN in templates
+# No additional Python packages needed for frontend visualization

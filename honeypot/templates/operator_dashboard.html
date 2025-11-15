@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Honeypot Operator Dashboard</title>
+    <!-- Chart.js for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Socket.IO for real-time updates -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+            padding: 20px;
+        }
+        
+        .panel h2 {
+            color: #1e3c72;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 2px solid #e1e5e9;
+            padding-bottom: 10px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+        
+        .map-container {
+            height: 400px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .events-table {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+        }
+        
+        .events-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .events-table th,
+        .events-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+            font-size: 12px;
+        }
+        
+        .events-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        
+        .events-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .ip-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        
+        .country-flag {
+            margin-right: 5px;
+        }
+        
+        .attack-type {
+            background: #fff3e0;
+            color: #f57c00;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        
+        .attack-type.sql {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .attack-type.xss {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+        
+        .attack-type.admin {
+            background: #e8f5e8;
+            color: #388e3c;
+        }
+        
+        .controls {
+            background: white;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .controls label {
+            font-weight: 500;
+            margin-right: 5px;
+        }
+        
+        .controls select,
+        .controls input {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .controls button {
+            background: #1e3c72;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        .controls button:hover {
+            background: #2a5298;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-connected {
+            background: #4caf50;
+        }
+        
+        .status-disconnected {
+            background: #f44336;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Honeypot Operator Dashboard</h1>
+        <p>Real-time security analysis and threat monitoring</p>
+        <p><span id="connection-status" class="status-indicator status-disconnected"></span> <span id="status-text">Connecting...</span></p>
+    </div>
+    
+    <div class="controls">
+        <label>Time Range:</label>
+        <select id="timeRange">
+            <option value="1">Last 1 Hour</option>
+            <option value="6">Last 6 Hours</option>
+            <option value="24" selected>Last 24 Hours</option>
+            <option value="168">Last 7 Days</option>
+        </select>
+        
+        <label>Filter IP:</label>
+        <input type="text" id="ipFilter" placeholder="e.g., 192.168.1.">
+        
+        <label>Endpoint:</label>
+        <select id="endpointFilter">
+            <option value="">All Endpoints</option>
+            <option value="login">Login</option>
+            <option value="admin">Admin Panel</option>
+            <option value="api">API</option>
+        </select>
+        
+        <label>Country:</label>
+        <input type="text" id="countryFilter" placeholder="e.g., US, CN">
+        
+        <button onclick="applyFilters()">Apply Filters</button>
+        <button onclick="exportData()">Export CSV</button>
+        <button onclick="clearFilters()">Clear</button>
+    </div>
+    
+    <div class="dashboard-container">
+        <!-- Statistics Panel -->
+        <div class="panel full-width">
+            <h2>📊 Live Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalEvents">0</div>
+                    <div class="stat-label">Total Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="uniqueIPs">0</div>
+                    <div class="stat-label">Unique IPs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="adminAttempts">0</div>
+                    <div class="stat-label">Admin Access</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="topCountry">-</div>
+                    <div class="stat-label">Top Country</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Events Chart -->
+        <div class="panel">
+            <h2>📈 Events Over Time</h2>
+            <div class="chart-container">
+                <canvas id="eventsChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Top Countries Chart -->
+        <div class="panel">
+            <h2>🌍 Attack Origins</h2>
+            <div class="chart-container">
+                <canvas id="countriesChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Geographic Map -->
+        <div class="panel full-width">
+            <h2>🗺️ Global Attack Map</h2>
+            <div class="map-container" id="attackMap"></div>
+        </div>
+        
+        <!-- Live Events Table -->
+        <div class="panel full-width">
+            <h2>🚨 Live Events Stream</h2>
+            <div class="events-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>IP Address</th>
+                            <th>Country</th>
+                            <th>Endpoint</th>
+                            <th>Attack Type</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eventsTableBody">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let socket;
+        let eventsChart;
+        let countriesChart;
+        let attackMap;
+        let currentFilters = {
+            hours: 24,
+            ip: '',
+            endpoint: '',
+            country: ''
+        };
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            initializeMap();
+            initializeWebSocket();
+            loadInitialData();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(loadInitialData, 30000);
+        });
+        
+        function initializeWebSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Connected to server');
+                updateConnectionStatus(true);
+                socket.emit('join_operators');
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('Disconnected from server');
+                updateConnectionStatus(false);
+            });
+            
+            socket.on('new_event', function(event) {
+                addEventToTable(event);
+                updateLiveStats();
+            });
+            
+            socket.on('enrichment_update', function(data) {
+                updateEventEnrichment(data.event_id, data.enrichment);
+            });
+            
+            socket.on('status', function(data) {
+                console.log('Status:', data.msg);
+            });
+            
+            socket.on('error', function(data) {
+                console.error('Socket error:', data.msg);
+            });
+        }
+        
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connection-status');
+            const text = document.getElementById('status-text');
+            
+            if (connected) {
+                indicator.className = 'status-indicator status-connected';
+                text.textContent = 'Connected - Live Updates';
+            } else {
+                indicator.className = 'status-indicator status-disconnected';
+                text.textContent = 'Disconnected - No Live Updates';
+            }
+        }
+        
+        function initializeCharts() {
+            // Events over time chart
+            const eventsCtx = document.getElementById('eventsChart').getContext('2d');
+            eventsChart = new Chart(eventsCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Events per Hour',
+                        data: [],
+                        borderColor: '#1e3c72',
+                        backgroundColor: 'rgba(30, 60, 114, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // Countries chart
+            const countriesCtx = document.getElementById('countriesChart').getContext('2d');
+            countriesChart = new Chart(countriesCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                            '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function initializeMap() {
+            attackMap = L.map('attackMap').setView([20, 0], 2);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(attackMap);
+        }
+        
+        function loadInitialData() {
+            // Load statistics
+            fetch(`/api/stats?hours=${currentFilters.hours}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateStatistics(data);
+                    updateCharts(data);
+                })
+                .catch(error => console.error('Error loading stats:', error));
+            
+            // Load events
+            loadEvents();
+        }
+        
+        function loadEvents() {
+            const params = new URLSearchParams({
+                limit: 100,
+                hours: currentFilters.hours,
+                ip: currentFilters.ip,
+                endpoint: currentFilters.endpoint,
+                country: currentFilters.country
+            });
+            
+            fetch(`/api/events?${params}`)
+                .then(response => response.json())
+                .then(events => {
+                    updateEventsTable(events);
+                    updateMap(events);
+                })
+                .catch(error => console.error('Error loading events:', error));
+        }
+        
+        function updateStatistics(data) {
+            document.getElementById('totalEvents').textContent = data.total_events || 0;
+            document.getElementById('uniqueIPs').textContent = data.unique_ips || 0;
+            document.getElementById('adminAttempts').textContent = data.admin_access_attempts || 0;
+            
+            const topCountry = data.top_countries && data.top_countries.length > 0 
+                ? data.top_countries[0].country 
+                : '-';
+            document.getElementById('topCountry').textContent = topCountry;
+        }
+        
+        function updateCharts(data) {
+            // Update events over time chart
+            if (data.events_per_hour) {
+                const hours = data.events_per_hour.map(item => {
+                    const date = new Date(item.hour + ':00:00Z');
+                    return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                });
+                const counts = data.events_per_hour.map(item => item.count);
+                
+                eventsChart.data.labels = hours.reverse();
+                eventsChart.data.datasets[0].data = counts.reverse();
+                eventsChart.update();
+            }
+            
+            // Update countries chart
+            if (data.top_countries) {
+                const countries = data.top_countries.map(item => item.country);
+                const counts = data.top_countries.map(item => item.count);
+                
+                countriesChart.data.labels = countries;
+                countriesChart.data.datasets[0].data = counts;
+                countriesChart.update();
+            }
+        }
+        
+        function updateEventsTable(events) {
+            const tbody = document.getElementById('eventsTableBody');
+            tbody.innerHTML = '';
+            
+            events.forEach(event => {
+                addEventToTable(event);
+            });
+        }
+        
+        function addEventToTable(event) {
+            const tbody = document.getElementById('eventsTableBody');
+            const row = document.createElement('tr');
+            
+            const timestamp = new Date(event.timestamp).toLocaleString();
+            const ip = event.client_ip || 'Unknown';
+            const country = event.country || '-';
+            const endpoint = event.endpoint || event.full_path || '-';
+            
+            // Determine attack type
+            let attackType = 'Normal';
+            let attackClass = '';
+            
+            if (event.raw_json && event.raw_json.includes('honeypot_access_granted')) {
+                attackType = 'Admin Access';
+                attackClass = 'admin';
+            } else if (event.username && (event.username.includes("'") || event.username.includes('OR'))) {
+                attackType = 'SQL Injection';
+                attackClass = 'sql';
+            } else if (event.username && (event.username.includes('<script>') || event.username.includes('alert'))) {
+                attackType = 'XSS Attempt';
+                attackClass = 'xss';
+            } else if (event.action === 'login_attempt') {
+                attackType = 'Login Attempt';
+            }
+            
+            row.innerHTML = `
+                <td>${timestamp}</td>
+                <td><span class="ip-badge">${ip}</span></td>
+                <td>${country}</td>
+                <td>${endpoint}</td>
+                <td><span class="attack-type ${attackClass}">${attackType}</span></td>
+                <td>${event.username || event.action || '-'}</td>
+            `;
+            
+            // Add to top of table
+            tbody.insertBefore(row, tbody.firstChild);
+            
+            // Keep only last 100 rows
+            while (tbody.children.length > 100) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+        
+        function updateMap(events) {
+            // Clear existing markers
+            attackMap.eachLayer(layer => {
+                if (layer instanceof L.Marker) {
+                    attackMap.removeLayer(layer);
+                }
+            });
+            
+            // Group events by country/location
+            const locationCounts = {};
+            
+            events.forEach(event => {
+                if (event.country) {
+                    const key = event.country;
+                    if (!locationCounts[key]) {
+                        locationCounts[key] = {
+                            count: 0,
+                            country: event.country,
+                            // Use approximate coordinates for demo
+                            lat: getCountryLat(event.country),
+                            lng: getCountryLng(event.country)
+                        };
+                    }
+                    locationCounts[key].count++;
+                }
+            });
+            
+            // Add markers to map
+            Object.values(locationCounts).forEach(location => {
+                if (location.lat && location.lng) {
+                    const marker = L.marker([location.lat, location.lng])
+                        .addTo(attackMap)
+                        .bindPopup(`
+                            <strong>${location.country}</strong><br>
+                            Events: ${location.count}
+                        `);
+                }
+            });
+        }
+        
+        function getCountryLat(country) {
+            // Simplified country coordinates for demo
+            const coords = {
+                'US': 39.8283, 'CN': 35.8617, 'RU': 61.5240,
+                'DE': 51.1657, 'GB': 55.3781, 'FR': 46.2276,
+                'IN': 20.5937, 'BR': -14.2350, 'JP': 36.2048
+            };
+            return coords[country] || 0;
+        }
+        
+        function getCountryLng(country) {
+            const coords = {
+                'US': -95.5795, 'CN': 104.1954, 'RU': 105.3188,
+                'DE': 10.4515, 'GB': -3.4360, 'FR': 2.2137,
+                'IN': 78.9629, 'BR': -51.9253, 'JP': 138.2529
+            };
+            return coords[country] || 0;
+        }
+        
+        function applyFilters() {
+            currentFilters.hours = document.getElementById('timeRange').value;
+            currentFilters.ip = document.getElementById('ipFilter').value;
+            currentFilters.endpoint = document.getElementById('endpointFilter').value;
+            currentFilters.country = document.getElementById('countryFilter').value;
+            
+            loadInitialData();
+        }
+        
+        function clearFilters() {
+            document.getElementById('timeRange').value = '24';
+            document.getElementById('ipFilter').value = '';
+            document.getElementById('endpointFilter').value = '';
+            document.getElementById('countryFilter').value = '';
+            
+            currentFilters = { hours: 24, ip: '', endpoint: '', country: '' };
+            loadInitialData();
+        }
+        
+        function exportData() {
+            const params = new URLSearchParams({
+                limit: 5000,
+                hours: currentFilters.hours,
+                ip: currentFilters.ip,
+                endpoint: currentFilters.endpoint,
+                country: currentFilters.country
+            });
+            
+            window.open(`/api/export?${params}`, '_blank');
+        }
+        
+        function updateLiveStats() {
+            // Refresh stats when new events come in
+            fetch(`/api/stats?hours=${currentFilters.hours}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateStatistics(data);
+                })
+                .catch(error => console.error('Error updating stats:', error));
+        }
+        
+        function updateEventEnrichment(eventId, enrichment) {
+            // Update any displayed events with new enrichment data
+            console.log('Enrichment update for event', eventId, enrichment);
+        }
+    </script>
+</body>
+</html>

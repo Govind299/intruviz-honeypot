@@ -1,201 +1,293 @@
 """
-SQLite storage and query API for honeypot events (Module B).
-Handles DB schema, event insertion, enrichment updates, and queries.
+Storage layer for honeypot events - SQLite database operations
+Provides structured query interface for operator dashboard analytics.
 """
-import os
 import sqlite3
-import threading
 import json
-from datetime import datetime
-from typing import Optional, Dict, Any, List
+import os
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
+from .config import DATABASE_PATH
 
-from . import config
-
-_DB_LOCK = threading.Lock()
-
-
-def get_db_conn(db_path: Optional[str] = None):
-    """Get a SQLite connection (thread-safe)."""
-    path = db_path or config.DB_PATH
-    conn = sqlite3.connect(path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db(db_path: Optional[str] = None):
-    """Create DB and tables if not exist (idempotent)."""
-    path = db_path or config.DB_PATH
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with _DB_LOCK:
-        conn = get_db_conn(path)
-        cur = conn.cursor()
-        # Main events table
-        cur.execute('''
+def init_database():
+    """Initialize SQLite database with required tables"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    # Create events table if not exists
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS events (
             id TEXT PRIMARY KEY,
-            timestamp TEXT,
-            client_ip TEXT,
+            timestamp TEXT NOT NULL,
+            client_ip TEXT NOT NULL,
             method TEXT,
             endpoint TEXT,
             headers TEXT,
-            query_params TEXT,
-            cookies TEXT,
             form_data TEXT,
             user_agent TEXT,
-            raw_body_preview TEXT,
             raw_json TEXT,
+            country TEXT,
+            region TEXT,
+            city TEXT,
+            latitude REAL,
+            longitude REAL,
+            isp TEXT,
             enriched INTEGER DEFAULT 0,
-            country TEXT,
-            region TEXT,
-            city TEXT,
-            asn TEXT,
-            isp TEXT,
-            rdns TEXT
-        );''')
-        cur.execute('CREATE INDEX IF NOT EXISTS idx_ts ON events(timestamp);')
-        cur.execute('CREATE INDEX IF NOT EXISTS idx_ip ON events(client_ip);')
-        # Geo cache table
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS geo_cache (
-            ip TEXT PRIMARY KEY,
-            country TEXT,
-            region TEXT,
-            city TEXT,
-            asn TEXT,
-            isp TEXT,
-            rdns TEXT,
-            last_seen TEXT
-        );''')
-        conn.commit()
-        conn.close()
+            attack_type TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create indexes for better query performance
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON events(timestamp)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_client_ip ON events(client_ip)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_country ON events(country)")
+    # cursor.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON events(created_at)") # Column doesn't exist in current schema
+    
+    conn.commit()
+    conn.close()
 
-
-def insert_event(raw_event: Dict[str, Any], db_path: Optional[str] = None) -> str:
-    """
-    Insert a normalized event into the DB. Returns event UUID.
-    """
-    from uuid import uuid4
-    event = dict(raw_event)  # Copy
-    event_id = event.get('id') or str(uuid4())
-    event['id'] = event_id
-    event['timestamp'] = event.get('timestamp') or datetime.utcnow().isoformat()
-    # Serialize JSON fields
-    def safe_json(val):
-        try:
-            return json.dumps(val, ensure_ascii=False)
-        except Exception:
-            return '{}'
-    headers = safe_json(event.get('headers', {}))
-    query_params = safe_json(event.get('query_params', {}))
-    cookies = safe_json(event.get('cookies', {}))
-    form_data = safe_json(event.get('form_data', {}))
-    raw_json = safe_json(event)
-    with _DB_LOCK:
-        conn = get_db_conn(db_path)
-        cur = conn.cursor()
-        cur.execute('''
-            INSERT OR IGNORE INTO events (
-                id, timestamp, client_ip, method, endpoint, headers, query_params, cookies, form_data, user_agent, raw_body_preview, raw_json, enriched
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-        ''', (
-            event_id,
-            event['timestamp'],
-            event.get('client_ip'),
-            event.get('method'),
-            event.get('endpoint'),
-            headers,
-            query_params,
-            cookies,
-            form_data,
-            event.get('user_agent'),
-            event.get('raw_body_preview'),
-            raw_json
-        ))
-        conn.commit()
-        conn.close()
+def insert_event(event_data: Dict[str, Any]) -> str:
+    """Insert a new event into the database"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    event_id = event_data.get('id', '')
+    cursor.execute("""
+        INSERT OR REPLACE INTO events (
+            id, timestamp, client_ip, method, endpoint, headers, form_data,
+            user_agent, raw_json, country, region, city, isp, enriched
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        event_id,
+        event_data.get('timestamp', ''),
+        event_data.get('ip_address', ''),
+        event_data.get('method', 'POST'),
+        event_data.get('endpoint', '/login'),
+        json.dumps(event_data.get('headers', {})),
+        json.dumps(event_data.get('form_data', {})),
+        event_data.get('user_agent', ''),
+        json.dumps(event_data),
+        event_data.get('country', ''),
+        event_data.get('region', ''),
+        event_data.get('city', ''),
+        event_data.get('isp', ''),
+        1 if event_data.get('country') else 0
+    ))
+    
+    conn.commit()
+    conn.close()
     return event_id
 
+def query_recent(limit: int = 100, offset: int = 0, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    """Query recent events with optional filters"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    where_clauses = []
+    params = []
+    
+    if filters:
+        if filters.get('since'):
+            where_clauses.append("timestamp >= ?")
+            params.append(filters['since'])
+        if filters.get('ip'):
+            where_clauses.append("client_ip LIKE ?")
+            params.append(f"%{filters['ip']}%")
+        if filters.get('country'):
+            where_clauses.append("country = ?")
+            params.append(filters['country'])
+        if filters.get('type'):
+            where_clauses.append("attack_type = ?")
+            params.append(filters['type'])
+    
+    where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+    
+    cursor.execute(f"""
+        SELECT * FROM events 
+        {where_sql}
+        ORDER BY timestamp DESC 
+        LIMIT ? OFFSET ?
+    """, params + [limit, offset])
+    
+    events = []
+    for row in cursor.fetchall():
+        event = dict(row)
+        # Parse JSON fields
+        try:
+            event['headers'] = json.loads(event['headers']) if event['headers'] else {}
+            event['form_data'] = json.loads(event['form_data']) if event['form_data'] else {}
+            event['raw_json'] = json.loads(event['raw_json']) if event['raw_json'] else {}
+        except json.JSONDecodeError:
+            pass
+        events.append(event)
+    
+    conn.close()
+    return events
 
-def update_enrichment(event_id: str, enrichment: Dict[str, Any], db_path: Optional[str] = None):
-    """
-    Update enrichment fields for an event (country, city, asn, etc.).
-    """
-    with _DB_LOCK:
-        conn = get_db_conn(db_path)
-        cur = conn.cursor()
-        cur.execute('''
-            UPDATE events SET
-                country = ?,
-                region = ?,
-                city = ?,
-                asn = ?,
-                isp = ?,
-                rdns = ?,
-                enriched = 1
-            WHERE id = ?
-        ''', (
-            enrichment.get('country'),
-            enrichment.get('region'),
-            enrichment.get('city'),
-            enrichment.get('asn'),
-            enrichment.get('isp'),
-            enrichment.get('rdns'),
-            event_id
-        ))
-        conn.commit()
+def query_top_ips(limit: int = 10) -> List[Dict[str, Any]]:
+    """Query top attacking IP addresses"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT client_ip, COUNT(*) as cnt, MIN(timestamp) as first_seen, MAX(timestamp) as last_seen
+        FROM events
+        GROUP BY client_ip
+        ORDER BY cnt DESC
+        LIMIT ?
+    """, (limit,))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            'ip': row[0],
+            'count': row[1],
+            'first_seen': row[2],
+            'last_seen': row[3]
+        })
+    
+    conn.close()
+    return results
+
+def query_top_countries(limit: int = 10) -> List[Dict[str, Any]]:
+    """Query top attacking countries"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT country, COUNT(*) as cnt
+        FROM events
+        WHERE country IS NOT NULL AND country != ''
+        GROUP BY country
+        ORDER BY cnt DESC
+        LIMIT ?
+    """, (limit,))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            'country': row[0],
+            'count': row[1]
+        })
+    
+    conn.close()
+    return results
+
+def query_stats_by_time(bucket: str = 'minute', since: str = None) -> List[Dict[str, Any]]:
+    """Query event statistics grouped by time bucket"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    if bucket == 'minute':
+        time_format = '%Y-%m-%dT%H:%M:00'
+    elif bucket == 'hour':
+        time_format = '%Y-%m-%dT%H:00:00'
+    else:
+        time_format = '%Y-%m-%d'
+    
+    since_clause = ""
+    params = []
+    if since:
+        since_clause = "WHERE timestamp >= ?"
+        params.append(since)
+    
+    cursor.execute(f"""
+        SELECT strftime('{time_format}', timestamp) as t, COUNT(*) as cnt
+        FROM events
+        {since_clause}
+        GROUP BY t
+        ORDER BY t ASC
+    """, params)
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            'time': row[0],
+            'count': row[1]
+        })
+    
+    conn.close()
+    return results
+
+def query_map_points(limit: int = 1000, since: str = None) -> List[Dict[str, Any]]:
+    """Query geolocated events for map visualization"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    # Check if latitude/longitude columns exist
+    cursor.execute("PRAGMA table_info(events)")
+    columns = [col[1] for col in cursor.fetchall()]
+    
+    has_coordinates = 'latitude' in columns and 'longitude' in columns
+    
+    if not has_coordinates:
+        print("Warning: latitude/longitude columns not found. Run migrate_database.py first.")
         conn.close()
+        return []
+    
+    since_clause = ""
+    params = []
+    if since:
+        since_clause = "WHERE timestamp >= ?"
+        params.append(since)
+    
+    # Add coordinate filters
+    coord_clause = "latitude IS NOT NULL AND longitude IS NOT NULL AND latitude != 0 AND longitude != 0"
+    if since_clause:
+        coord_clause = " AND " + coord_clause
+    else:
+        coord_clause = "WHERE " + coord_clause
+    
+    cursor.execute(f"""
+        SELECT client_ip, country, city, latitude, longitude, 
+               MIN(timestamp) as first_seen, MAX(timestamp) as last_seen, COUNT(*) as cnt
+        FROM events
+        {since_clause}{coord_clause}
+        GROUP BY client_ip
+        ORDER BY cnt DESC
+        LIMIT ?
+    """, params + [limit])
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            'ip': row[0],
+            'country': row[1] or 'Unknown',
+            'city': row[2] or 'Unknown',
+            'lat': float(row[3]) if row[3] else 0.0,
+            'lon': float(row[4]) if row[4] else 0.0,
+            'first_seen': row[5],
+            'last_seen': row[6],
+            'count': row[7]
+        })
+    
+    conn.close()
+    return results
 
-
-def query_recent(limit: int = 100, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Return the most recent N events (as dicts).
-    """
-    with _DB_LOCK:
-        conn = get_db_conn(db_path)
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM events ORDER BY timestamp DESC LIMIT ?', (limit,))
-        rows = cur.fetchall()
+def get_event_by_id(event_id: str) -> Optional[Dict[str, Any]]:
+    """Get a single event by ID"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM events WHERE id = ?", (event_id,))
+    row = cursor.fetchone()
+    
+    if row:
+        event = dict(row)
+        try:
+            event['headers'] = json.loads(event['headers']) if event['headers'] else {}
+            event['form_data'] = json.loads(event['form_data']) if event['form_data'] else {}
+            event['raw_json'] = json.loads(event['raw_json']) if event['raw_json'] else {}
+        except json.JSONDecodeError:
+            pass
         conn.close()
-    return [dict(row) for row in rows]
+        return event
+    
+    conn.close()
+    return None
 
-
-def query_top_ips(limit: int = 10, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Return top IPs by event count.
-    """
-    with _DB_LOCK:
-        conn = get_db_conn(db_path)
-        cur = conn.cursor()
-        cur.execute('''
-            SELECT client_ip, COUNT(*) as count
-            FROM events
-            GROUP BY client_ip
-            ORDER BY count DESC
-            LIMIT ?
-        ''', (limit,))
-        rows = cur.fetchall()
-        conn.close()
-    return [dict(row) for row in rows]
-
-
-def query_failed_logins_per_hour(db_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Return failed login attempts per hour (UTC).
-    """
-    with _DB_LOCK:
-        conn = get_db_conn(db_path)
-        cur = conn.cursor()
-        cur.execute('''
-            SELECT substr(timestamp, 1, 13) as hour, COUNT(*) as count
-            FROM events
-            WHERE endpoint = '/login' AND method = 'POST'
-            GROUP BY hour
-            ORDER BY hour DESC
-        ''')
-        rows = cur.fetchall()
-        conn.close()
-    return [dict(row) for row in rows]
-
-
-# Initialize DB on import (safe to call multiple times)
-init_db()
+# Initialize database on import
+init_database()
