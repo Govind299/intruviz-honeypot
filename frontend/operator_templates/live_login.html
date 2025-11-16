@@ -76,18 +76,6 @@
             font-weight: 600;
         }
 
-        .warning {
-            background: linear-gradient(135deg, rgba(239, 83, 80, 0.15) 0%, rgba(239, 83, 80, 0.08) 100%);
-            border: 1px solid rgba(239, 83, 80, 0.3);
-            border-left: 4px solid #ef5350;
-            color: #ffcdd2;
-            padding: 1rem 1.25rem;
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-            text-align: center;
-            font-weight: 600;
-        }
-
         .login-header {
             text-align: center;
             margin-bottom: 2.5rem;
@@ -95,25 +83,61 @@
 
         .login-header h1 {
             color: #ffffff;
-            margin: 0;
             font-size: 1.75rem;
+            margin-bottom: 0.75rem;
             font-weight: 700;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 0.5rem;
-            margin-bottom: 0.5rem;
         }
 
         .login-header h1 i {
             color: #00eaff;
+            font-size: 1.5rem;
         }
 
-        .login-header p {
-            color: #e4e6eb;
-            margin: 0.5rem 0 0 0;
-            font-size: 0.9rem;
-            opacity: 0.8;
+        .login-header .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(0, 234, 255, 0.2) 0%, rgba(0, 234, 255, 0.1) 100%);
+            color: #00eaff;
+            padding: 0.5rem 1.25rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            border: 1px solid rgba(0, 234, 255, 0.3);
+        }
+
+        .warning {
+            background: linear-gradient(135deg, rgba(255, 171, 0, 0.15) 0%, rgba(255, 171, 0, 0.08) 100%);
+            border: 1px solid rgba(255, 171, 0, 0.3);
+            border-left: 4px solid #ffab00;
+            color: #ffd54f;
+            padding: 1rem 1.25rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            text-align: center;
+        }
+
+        .warning strong {
+            color: #ffab00;
+        }
+
+        .error {
+            background: linear-gradient(135deg, rgba(239, 83, 80, 0.15) 0%, rgba(239, 83, 80, 0.08) 100%);
+            border: 1px solid rgba(239, 83, 80, 0.3);
+            border-left: 4px solid #ef5350;
+            color: #ffcdd2;
+            padding: 1rem 1.25rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            text-align: center;
+        }
+
+        .error strong {
+            color: #ef5350;
         }
 
         .form-group {
@@ -123,9 +147,9 @@
 
         .form-group label {
             display: block;
-            margin-bottom: 0.75rem;
             color: #e4e6eb;
             font-weight: 500;
+            margin-bottom: 0.75rem;
             font-size: 0.9rem;
             letter-spacing: 0.5px;
         }
@@ -210,15 +234,23 @@
             transform: translateY(0);
         }
 
-        .error {
-            background: linear-gradient(135deg, rgba(239, 83, 80, 0.15) 0%, rgba(239, 83, 80, 0.08) 100%);
-            border: 1px solid rgba(239, 83, 80, 0.3);
-            border-left: 4px solid #ef5350;
-            color: #ffcdd2;
-            padding: 1rem 1.25rem;
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-            font-size: 0.875rem;
+        .info-box {
+            margin-top: 2rem;
+            padding: 1.25rem;
+            background: rgba(33, 150, 243, 0.1);
+            border-left: 4px solid #2196f3;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: #90caf9;
+            line-height: 1.6;
+            border: 1px solid rgba(33, 150, 243, 0.2);
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #64b5f6;
+            font-weight: 600;
         }
 
         /* Responsive design */
@@ -243,25 +275,26 @@
 <body>
     <div class="login-container">
         <div class="portal-title">Operator Secure Access Portal</div>
-
-        <div class="warning">
-            {{ security_warning }}
-        </div>
-
         <div class="login-header">
-            <h1><i class="fas fa-shield-halved"></i> Operator Dashboard</h1>
-            <p>Module D - Real-time Analytics</p>
+            <h1><i class="fas fa-shield-halved"></i> Live Operator</h1>
+            <span class="badge">Real-Time Dashboard</span>
         </div>
+
+        {% if security_warning %}
+        <div class="warning">
+            <strong>⚠️ {{ security_warning }}</strong>
+        </div>
+        {% endif %}
 
         {% if error %}
         <div class="error">
-            {{ error }}
+            <strong>❌ {{ error }}</strong>
         </div>
         {% endif %}
 
         <form method="POST">
             <div class="form-group">
-                <label for="password">Operator Password:</label>
+                <label for="password">Dashboard Password</label>
                 <div class="input-wrapper">
                     <i class="fas fa-lock"></i>
                     <input type="password" id="password" name="password" placeholder="Enter operator password" required
@@ -270,9 +303,10 @@
             </div>
 
             <button type="submit" class="login-btn">
-                Access Dashboard
+                <i class="fas fa-rocket"></i> Access Dashboard
             </button>
         </form>
+
     </div>
 </body>
 

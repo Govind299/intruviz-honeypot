@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Honeypot Operator Dashboard</title>
+    <title>Live Operator Dashboard</title>
 
     <!-- CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
@@ -29,12 +29,12 @@
     <header class="dashboard-header">
         <div class="header-content">
             <div class="header-left">
-                <h1>Honeypot Operator Dashboard</h1>
-                <span class="module-badge">Module D - Real-time Analytics</span>
+                <h1>🔴 Live Operator Dashboard</h1>
+                <span class="module-badge">Real-Time Only - Post-Login Events</span>
             </div>
             <div class="header-right">
                 <span class="login-info">Logged in: {{ login_time[:19] if login_time else 'Unknown' }}</span>
-                <a href="/operator/logout" class="logout-btn">Logout</a>
+                <a href="/live/logout" class="logout-btn">Logout</a>
             </div>
         </div>
         <div class="warning-bar">
@@ -163,7 +163,7 @@
     </div>
 
     <!-- JavaScript -->
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/live_dashboard.js') }}"></script>
 </body>
 
 </html>

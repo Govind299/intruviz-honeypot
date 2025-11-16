@@ -100,6 +100,11 @@ def api_events():
     country = request.args.get('country', '')
     attack_type = request.args.get('type', '')
     
+    # If no 'since' filter is provided and user is logged in, 
+    # default to showing only events after login time
+    if not since and session.get('login_time'):
+        since = session.get('login_time')
+    
     result = get_filtered_events(
         limit=limit, offset=offset, since=since,
         ip=ip, country=country, attack_type=attack_type
@@ -117,16 +122,20 @@ def api_event_detail(event_id):
 def api_stats():
     """Get dashboard statistics"""
     hours = int(request.args.get('hours', 24))
-    stats = get_dashboard_stats(since_hours=hours)
+    # Use login time as baseline if available
+    since_time = request.args.get('since', session.get('login_time', ''))
+    stats = get_dashboard_stats(since_hours=hours, since_time=since_time)
     return jsonify(stats)
 
 @app.route('/api/map_points')
 def api_map_points():
-    """Get geolocation points for map"""
+    """Get geolocation points for map visualization"""
     hours = int(request.args.get('hours', 24))
     limit = int(request.args.get('limit', 1000))
+    # Use login time as baseline if available
+    since_time = request.args.get('since', session.get('login_time', ''))
     
-    map_data = get_map_data(since_hours=hours, limit=limit)
+    map_data = get_map_data(since_hours=hours, limit=limit, since_time=since_time)
     return jsonify(map_data)
 
 @app.route('/api/notify_event', methods=['POST'])
@@ -186,7 +195,9 @@ def handle_disconnect():
 def handle_request_recent(data):
     """Handle request for recent events"""
     limit = data.get('limit', 10)
-    recent_events = get_filtered_events(limit=limit, offset=0)
+    # Only show events after login time by default
+    since = session.get('login_time', '')
+    recent_events = get_filtered_events(limit=limit, offset=0, since=since)
     socketio.emit('recent_events', recent_events, namespace='/events')
 
 # Health check

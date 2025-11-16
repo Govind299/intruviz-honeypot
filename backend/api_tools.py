@@ -14,17 +14,20 @@ from honeypot.storage import (
     query_stats_by_time, query_map_points, get_event_by_id
 )
 
-def get_dashboard_stats(since_hours: int = 24) -> Dict[str, Any]:
+def get_dashboard_stats(since_hours: int = 24, since_time: str = None) -> Dict[str, Any]:
     """Get comprehensive dashboard statistics"""
     
-    # Calculate since timestamp
-    since_time = (datetime.utcnow() - timedelta(hours=since_hours)).isoformat()
+    # Calculate since timestamp - use provided since_time or calculate from hours
+    if since_time:
+        since_timestamp = since_time
+    else:
+        since_timestamp = (datetime.utcnow() - timedelta(hours=since_hours)).isoformat()
     
     # Get various statistics
-    top_ips = query_top_ips(limit=10)
-    top_countries = query_top_countries(limit=10)
-    timeline = query_stats_by_time(bucket='hour', since=since_time)
-    recent_events = query_recent(limit=50, filters={'since': since_time})
+    top_ips = query_top_ips(limit=10, since=since_timestamp)
+    top_countries = query_top_countries(limit=10, since=since_timestamp)
+    timeline = query_stats_by_time(bucket='hour', since=since_timestamp)
+    recent_events = query_recent(limit=50, filters={'since': since_timestamp})
     
     # Calculate attack type distribution
     attack_types = {}
@@ -39,6 +42,7 @@ def get_dashboard_stats(since_hours: int = 24) -> Dict[str, Any]:
         'attack_types': [{'type': k, 'count': v} for k, v in attack_types.items()],
         'total_events': len(recent_events),
         'timeframe_hours': since_hours,
+        'since_time': since_timestamp,
         'generated_at': datetime.utcnow().isoformat()
     }
 
@@ -72,11 +76,16 @@ def get_filtered_events(
         'filters': filters
     }
 
-def get_map_data(since_hours: int = 24, limit: int = 1000) -> Dict[str, Any]:
+def get_map_data(since_hours: int = 24, limit: int = 1000, since_time: str = None) -> Dict[str, Any]:
     """Get geolocation data for map visualization"""
     
-    since_time = (datetime.utcnow() - timedelta(hours=since_hours)).isoformat()
-    map_points = query_map_points(limit=limit, since=since_time)
+    # Use provided since_time or calculate from hours
+    if since_time:
+        since_timestamp = since_time
+    else:
+        since_timestamp = (datetime.utcnow() - timedelta(hours=since_hours)).isoformat()
+    
+    map_points = query_map_points(limit=limit, since=since_timestamp)
     
     # Format for Leaflet map
     formatted_points = []
@@ -91,7 +100,8 @@ def get_map_data(since_hours: int = 24, limit: int = 1000) -> Dict[str, Any]:
     return {
         'points': formatted_points,
         'total_points': len(formatted_points),
-        'timeframe_hours': since_hours
+        'timeframe_hours': since_hours,
+        'since_time': since_timestamp
     }
 
 def export_events_csv(filters: Dict[str, Any] = None) -> str:

@@ -85,6 +85,11 @@ def query_recent(limit: int = 100, offset: int = 0, filters: Dict[str, Any] = No
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
+    # Check if attack_type column exists
+    cursor.execute("PRAGMA table_info(events)")
+    columns = [col[1] for col in cursor.fetchall()]
+    has_attack_type = 'attack_type' in columns
+    
     where_clauses = []
     params = []
     
@@ -98,7 +103,7 @@ def query_recent(limit: int = 100, offset: int = 0, filters: Dict[str, Any] = No
         if filters.get('country'):
             where_clauses.append("country = ?")
             params.append(filters['country'])
-        if filters.get('type'):
+        if filters.get('type') and has_attack_type:
             where_clauses.append("attack_type = ?")
             params.append(filters['type'])
     
@@ -126,18 +131,25 @@ def query_recent(limit: int = 100, offset: int = 0, filters: Dict[str, Any] = No
     conn.close()
     return events
 
-def query_top_ips(limit: int = 10) -> List[Dict[str, Any]]:
+def query_top_ips(limit: int = 10, since: str = None) -> List[Dict[str, Any]]:
     """Query top attacking IP addresses"""
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
-    cursor.execute("""
+    since_clause = ""
+    params = []
+    if since:
+        since_clause = "WHERE timestamp >= ?"
+        params.append(since)
+    
+    cursor.execute(f"""
         SELECT client_ip, COUNT(*) as cnt, MIN(timestamp) as first_seen, MAX(timestamp) as last_seen
         FROM events
+        {since_clause}
         GROUP BY client_ip
         ORDER BY cnt DESC
         LIMIT ?
-    """, (limit,))
+    """, params + [limit])
     
     results = []
     for row in cursor.fetchall():
@@ -151,19 +163,26 @@ def query_top_ips(limit: int = 10) -> List[Dict[str, Any]]:
     conn.close()
     return results
 
-def query_top_countries(limit: int = 10) -> List[Dict[str, Any]]:
+def query_top_countries(limit: int = 10, since: str = None) -> List[Dict[str, Any]]:
     """Query top attacking countries"""
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
-    cursor.execute("""
+    since_clause = ""
+    params = []
+    if since:
+        since_clause = "WHERE timestamp >= ?"
+        params.append(since)
+    
+    cursor.execute(f"""
         SELECT country, COUNT(*) as cnt
         FROM events
-        WHERE country IS NOT NULL AND country != ''
+        {since_clause}
+        {' AND ' if since_clause else 'WHERE '}country IS NOT NULL AND country != ''
         GROUP BY country
         ORDER BY cnt DESC
         LIMIT ?
-    """, (limit,))
+    """, params + [limit])
     
     results = []
     for row in cursor.fetchall():

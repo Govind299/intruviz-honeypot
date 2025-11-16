@@ -34,11 +34,11 @@ class HoneypotDashboard {
     }
 
     initSocketIO() {
-        console.log('🔌 Connecting to WebSocket...');
-        this.socket = io('/events');
+        console.log('🔌 Connecting to LIVE WebSocket...');
+        this.socket = io('/live');
 
         this.socket.on('connect', () => {
-            console.log('Connected to real-time events');
+            console.log('✅ Connected to LIVE real-time events');
             this.updateStatus('realtime', 'Connected', 'connected');
             this.socket.emit('request_recent', { limit: 10 });
         });
@@ -376,7 +376,7 @@ class HoneypotDashboard {
     updateStats() {
         const timeRange = document.getElementById('time-range')?.value || '24';
 
-        fetch(`/api/stats?hours=${timeRange}`)
+        fetch(`/api/live/stats?hours=${timeRange}`)
             .then(response => response.json())
             .then(data => {
                 // Update status bar
@@ -448,7 +448,7 @@ class HoneypotDashboard {
     updateMapData() {
         const timeRange = document.getElementById('time-range')?.value || '24';
 
-        fetch(`/api/map_points?hours=${timeRange}&limit=1000`)
+        fetch(`/api/live/map_points?hours=${timeRange}&limit=1000`)
             .then(response => response.json())
             .then(data => {
                 if (!this.markers) return;
@@ -544,7 +544,7 @@ class HoneypotDashboard {
             if (value) params.append(key, value);
         });
 
-        fetch(`/api/events?${params.toString()}`)
+        fetch(`/api/live/events?${params.toString()}`)
             .then(response => response.json())
             .then(data => {
                 this.populateInitialEvents(data.events || []);
@@ -568,7 +568,7 @@ class HoneypotDashboard {
         this.updateMapData();
 
         // Load recent events (will automatically filter by login time on backend)
-        fetch('/api/events?limit=20')
+        fetch('/api/live/events?limit=20')
             .then(response => response.json())
             .then(data => {
                 this.populateInitialEvents(data.events || []);
