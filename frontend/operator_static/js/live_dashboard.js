@@ -16,6 +16,7 @@ class HoneypotDashboard {
         this.loginTime = null; // Store login time
         this.latestEventTime = null; // Track the latest event timestamp
         this.isFilterActive = false; // Track if user has applied filters
+        this.totalEventsCount = 0; // Store total events count (never changes with filters)
 
         this.init();
     }
@@ -482,32 +483,41 @@ class HoneypotDashboard {
     }
 
     updateStats() {
-        const timeRange = document.getElementById('time-range')?.value || '24';
-
         // Build query params with same filters as events
         const params = new URLSearchParams();
-        params.append('hours', timeRange);
+
+        // Use time range from filters if applied, otherwise default to 24 hours
+        const timeRangeHours = this.filters?.timeRange || '24';
+        params.append('hours', timeRangeHours);
 
         // Add current filters if active
         if (this.filters && Object.keys(this.filters).length > 0) {
             Object.entries(this.filters).forEach(([key, value]) => {
-                if (value) params.append(key, value);
+                if (value && key !== 'timeRange') { // Don't add timeRange to params, we use 'hours' instead
+                    params.append(key, value);
+                }
             });
         }
 
         fetch(`/api/live/stats?${params.toString()}`)
             .then(response => response.json())
             .then(data => {
-                // Update status bar
-                this.updateStatus('total', data.total_events.toLocaleString());
+                // ALWAYS use total_all_events from backend (ALL events in database)
+                // This never changes with filters
+                console.log('📊 Received total_all_events from backend:', data.total_all_events);
+                if (data.total_all_events !== undefined) {
+                    this.totalEventsCount = data.total_all_events;
+                    console.log('✅ Updated totalEventsCount to:', this.totalEventsCount);
+                }
+
+                // Always display the total count of ALL events in database
+                console.log('🔢 Displaying total events:', this.totalEventsCount.toLocaleString());
+                this.updateStatus('total', this.totalEventsCount.toLocaleString());
                 this.updateStatus('countries', data.top_countries.length);
 
-                if (data.timeline && data.timeline.length > 0) {
-                    const lastEvent = data.timeline[data.timeline.length - 1];
-                    this.updateStatus('last', new Date(lastEvent.time).toLocaleTimeString());
-                } else {
-                    this.updateStatus('last', 'No attacks yet');
-                }
+                // Don't update "last attack" time from filtered stats
+                // It should always show the most recent attack regardless of filters
+                // The latestEventTime is set by populateInitialEvents and handleNewEvent
 
                 // Update charts
                 this.updateTimelineChart(data.timeline);
@@ -636,17 +646,37 @@ class HoneypotDashboard {
     }
 
     applyFilters() {
+        const dateFilter = document.getElementById('filter-since')?.value || '';
+        const timeRangeFilter = document.getElementById('filter-time-range')?.value || '';
+
+        // Time range filter takes precedence over date filter
+        let sinceValue = '';
+        let timeRangeHours = '';
+
+        if (timeRangeFilter) {
+            // Calculate timestamp for time range (hours ago from now)
+            const hoursAgo = parseInt(timeRangeFilter);
+            const sinceDate = new Date();
+            sinceDate.setHours(sinceDate.getHours() - hoursAgo);
+            sinceValue = sinceDate.toISOString();
+            timeRangeHours = timeRangeFilter; // Store for stats API
+        } else if (dateFilter) {
+            // Use the selected date if no time range is selected
+            sinceValue = dateFilter;
+        }
+
         this.filters = {
             ip: document.getElementById('filter-ip')?.value || '',
             country: document.getElementById('filter-country')?.value || '',
             type: document.getElementById('filter-type')?.value || '',
-            since: document.getElementById('filter-since')?.value || ''
+            since: sinceValue,
+            timeRange: timeRangeHours // Store time range for stats
         };
 
         // Mark that filters are active
         this.isFilterActive = true;
 
-        // When date filter is applied, show ONLY events from that date
+        // When filters are applied, update everything
         this.loadFilteredEvents();
         this.updateStats();
         this.updateMapData();
@@ -657,6 +687,7 @@ class HoneypotDashboard {
         document.getElementById('filter-country').value = '';
         document.getElementById('filter-type').value = '';
         document.getElementById('filter-since').value = '';
+        document.getElementById('filter-time-range').value = '';
 
         this.filters = {};
         this.isFilterActive = false; // Clear filter active flag
@@ -688,7 +719,7 @@ class HoneypotDashboard {
             if (value) params.append(key, value);
         });
 
-        window.open(`/api/export/csv?${params.toString()}`, '_blank');
+        window.open(`/api/live/export/csv?${params.toString()}`, '_blank');
     }
 
     loadInitialData() {
