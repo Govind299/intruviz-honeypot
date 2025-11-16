@@ -49,7 +49,6 @@ pip install -r requirements.txt
 # Start basic honeypot
 python simple_honeypot.py
 
-# Access points:
 # - Honeypot: http://localhost:8080/login
 # - Admin panel: http://localhost:8080/admin/ (password: admin123)
 ```
@@ -71,9 +70,7 @@ python test_attacks.py
 
 # Or run comprehensive attack suite
 python run_attacks.py
-```
 
----
 
 ## 🛠️ Module D - Operator Dashboard
 
@@ -82,7 +79,7 @@ python run_attacks.py
 - **📊 Analytics Charts**: Timeline, top countries, top IPs, attack type distribution
 - **🗺️ Attack Origins Map**: Interactive world map showing geolocated attackers
 - **🔍 Event Details**: Deep-dive into individual attack events with raw data
-- **🎛️ Filtering & Search**: Filter by IP, country, time range, attack type
+- **🎛️ Filtering & Search **: Filter by IP, country, time range, attack type
 - **📥 Data Export**: Export filtered results to CSV
 - **🔐 Secure Access**: Password-protected with session management
 

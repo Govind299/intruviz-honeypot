@@ -72,49 +72,128 @@ def live_dashboard():
                          security_warning=SECURITY_WARNING,
                          login_time=login_time)
 
+@app.route('/live/event/<event_id>')
+def event_detail(event_id):
+    """Event detail page"""
+    return render_template('live_event_detail.html', 
+                         event_id=event_id,
+                         security_warning=SECURITY_WARNING)
+
 # API routes
 @app.route('/api/live/events')
 def api_live_events():
-    """Get events - ONLY after login time"""
+    """Get events - ONLY after login time by default, but respect user filters"""
     limit = int(request.args.get('limit', 100))
     offset = int(request.args.get('offset', 0))
     
-    # ALWAYS filter by login time
-    login_time = session.get('live_login_time')
+    # Get user-provided filters
+    user_since = request.args.get('since', '')
+    ip_filter = request.args.get('ip', '')
+    country_filter = request.args.get('country', '')
+    type_filter = request.args.get('type', '')
     
-    if not login_time:
-        return jsonify({
-            'events': [],
-            'count': 0,
-            'message': 'No login time found'
-        })
+    # Build filters dictionary
+    filters = {}
     
-    # Get events ONLY after login time
+    # If user provides a 'since' filter, use it; otherwise default to login time
+    if user_since:
+        # Check if it's a date-only format (YYYY-MM-DD) and convert to datetime range
+        if len(user_since) == 10 and user_since.count('-') == 2:
+            # Date only - set range from 00:00:00 to 23:59:59 of that day
+            from datetime import datetime, timedelta
+            date_obj = datetime.strptime(user_since, '%Y-%m-%d')
+            next_day = date_obj + timedelta(days=1)
+            
+            filters['since'] = f"{user_since} 00:00:00"
+            filters['until'] = next_day.strftime('%Y-%m-%d %H:%M:%S')
+            print(f"📅 User applied date filter: {user_since}")
+            print(f"📅 Range: {filters['since']} to {filters['until']}")
+        else:
+            # Already has time component - use as-is (for backward compatibility)
+            filters['since'] = user_since
+            print(f"📅 User applied datetime filter: {user_since}")
+    else:
+        login_time = session.get('live_login_time')
+        if login_time:
+            filters['since'] = login_time
+            print(f"🔒 Using default login time filter: {login_time}")
+    
+    # Add other filters if provided
+    if ip_filter:
+        filters['ip'] = ip_filter
+    if country_filter:
+        filters['country'] = country_filter
+    if type_filter:
+        filters['type'] = type_filter
+    
+    # Get events with filters
     events = storage.query_recent(
         limit=limit,
         offset=offset,
-        filters={'since': login_time}
+        filters=filters if filters else None
     )
     
-    print(f"📊 Returning {len(events)} events after {login_time}")
+    print(f"📊 Returning {len(events)} events with filters: {filters}")
     
     return jsonify({
         'events': events,
         'limit': limit,
         'offset': offset,
         'count': len(events),
-        'filters': {'since': login_time}
+        'filters': filters
     })
 
 @app.route('/api/live/stats')
 def api_live_stats():
-    """Get dashboard statistics - ONLY after login time"""
-    login_time = session.get('live_login_time')
+    """Get dashboard statistics - respects same filters as events"""
+    # Get user-provided filters (same logic as events endpoint)
+    user_since = request.args.get('since', '')
+    ip_filter = request.args.get('ip', '')
+    country_filter = request.args.get('country', '')
+    type_filter = request.args.get('type', '')
     
-    if not login_time:
-        return jsonify({'error': 'No login time'})
+    # Build filters dictionary
+    filters = {}
+    since_time = None
+    until_time = None
     
-    stats = get_dashboard_stats(since_hours=24, since_time=login_time)
+    # If user provides a 'since' filter, use it; otherwise default to login time
+    if user_since:
+        # Check if it's a date-only format (YYYY-MM-DD) and convert to datetime range
+        if len(user_since) == 10 and user_since.count('-') == 2:
+            # Date only - set range from 00:00:00 to next day 00:00:00
+            date_obj = datetime.strptime(user_since, '%Y-%m-%d')
+            next_day = date_obj + timedelta(days=1)
+            
+            since_time = f"{user_since} 00:00:00"
+            until_time = next_day.strftime('%Y-%m-%d %H:%M:%S')
+            filters['since'] = since_time
+            filters['until'] = until_time
+            print(f"📊 Stats date filter: {user_since} (range: {since_time} to {until_time})")
+        else:
+            # Already has time component
+            since_time = user_since
+            filters['since'] = since_time
+            print(f"📊 Stats datetime filter: {user_since}")
+    else:
+        # Default to login time
+        login_time = session.get('live_login_time')
+        if not login_time:
+            return jsonify({'error': 'No login time'})
+        since_time = login_time
+        filters['since'] = since_time
+        print(f"📊 Stats using login time: {login_time}")
+    
+    # Add other filters
+    if ip_filter:
+        filters['ip'] = ip_filter
+    if country_filter:
+        filters['country'] = country_filter
+    if type_filter:
+        filters['type'] = type_filter
+    
+    # Get stats with the same filters
+    stats = get_dashboard_stats(since_hours=24, since_time=since_time, until_time=until_time, filters=filters)
     return jsonify(stats)
 
 @app.route('/api/live/map_points')
@@ -128,6 +207,29 @@ def api_live_map():
     
     map_data = get_map_data(since_hours=24, limit=limit, since_time=login_time)
     return jsonify(map_data)
+
+@app.route('/api/live/event/<event_id>')
+def api_live_event_detail(event_id):
+    """Get detailed event information"""
+    # Get event details from storage
+    event = storage.get_event_by_id(event_id)
+    
+    if not event:
+        return jsonify({'error': 'Event not found'}), 404
+    
+    # Create enrichment status
+    enrichment = {
+        'geolocation_available': bool(event.get('latitude') and event.get('longitude')),
+        'country_detected': bool(event.get('country')),
+        'isp_detected': bool(event.get('isp')),
+        'user_agent_parsed': bool(event.get('user_agent'))
+    }
+    
+    # Return in the format expected by the frontend
+    return jsonify({
+        'event': event,
+        'enrichment': enrichment
+    })
 
 # SocketIO event handlers
 @socketio.on('connect', namespace='/live')

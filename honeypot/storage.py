@@ -97,6 +97,9 @@ def query_recent(limit: int = 100, offset: int = 0, filters: Dict[str, Any] = No
         if filters.get('since'):
             where_clauses.append("timestamp >= ?")
             params.append(filters['since'])
+        if filters.get('until'):
+            where_clauses.append("timestamp < ?")
+            params.append(filters['until'])
         if filters.get('ip'):
             where_clauses.append("client_ip LIKE ?")
             params.append(f"%{filters['ip']}%")
@@ -131,21 +134,27 @@ def query_recent(limit: int = 100, offset: int = 0, filters: Dict[str, Any] = No
     conn.close()
     return events
 
-def query_top_ips(limit: int = 10, since: str = None) -> List[Dict[str, Any]]:
+def query_top_ips(limit: int = 10, since: str = None, until: str = None) -> List[Dict[str, Any]]:
     """Query top attacking IP addresses"""
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
-    since_clause = ""
+    where_clauses = []
     params = []
+    
     if since:
-        since_clause = "WHERE timestamp >= ?"
+        where_clauses.append("timestamp >= ?")
         params.append(since)
+    if until:
+        where_clauses.append("timestamp < ?")
+        params.append(until)
+    
+    where_clause = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     
     cursor.execute(f"""
         SELECT client_ip, COUNT(*) as cnt, MIN(timestamp) as first_seen, MAX(timestamp) as last_seen
         FROM events
-        {since_clause}
+        {where_clause}
         GROUP BY client_ip
         ORDER BY cnt DESC
         LIMIT ?
@@ -163,22 +172,30 @@ def query_top_ips(limit: int = 10, since: str = None) -> List[Dict[str, Any]]:
     conn.close()
     return results
 
-def query_top_countries(limit: int = 10, since: str = None) -> List[Dict[str, Any]]:
+def query_top_countries(limit: int = 10, since: str = None, until: str = None) -> List[Dict[str, Any]]:
     """Query top attacking countries"""
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
-    since_clause = ""
+    where_clauses = []
     params = []
+    
     if since:
-        since_clause = "WHERE timestamp >= ?"
+        where_clauses.append("timestamp >= ?")
         params.append(since)
+    if until:
+        where_clauses.append("timestamp < ?")
+        params.append(until)
+    
+    # Always filter out null/empty countries
+    where_clauses.append("country IS NOT NULL AND country != ''")
+    
+    where_clause = " WHERE " + " AND ".join(where_clauses)
     
     cursor.execute(f"""
         SELECT country, COUNT(*) as cnt
         FROM events
-        {since_clause}
-        {' AND ' if since_clause else 'WHERE '}country IS NOT NULL AND country != ''
+        {where_clause}
         GROUP BY country
         ORDER BY cnt DESC
         LIMIT ?
@@ -194,7 +211,7 @@ def query_top_countries(limit: int = 10, since: str = None) -> List[Dict[str, An
     conn.close()
     return results
 
-def query_stats_by_time(bucket: str = 'minute', since: str = None) -> List[Dict[str, Any]]:
+def query_stats_by_time(bucket: str = 'minute', since: str = None, until: str = None) -> List[Dict[str, Any]]:
     """Query event statistics grouped by time bucket"""
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
@@ -206,16 +223,22 @@ def query_stats_by_time(bucket: str = 'minute', since: str = None) -> List[Dict[
     else:
         time_format = '%Y-%m-%d'
     
-    since_clause = ""
+    where_clauses = []
     params = []
+    
     if since:
-        since_clause = "WHERE timestamp >= ?"
+        where_clauses.append("timestamp >= ?")
         params.append(since)
+    if until:
+        where_clauses.append("timestamp < ?")
+        params.append(until)
+    
+    where_clause = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     
     cursor.execute(f"""
         SELECT strftime('{time_format}', timestamp) as t, COUNT(*) as cnt
         FROM events
-        {since_clause}
+        {where_clause}
         GROUP BY t
         ORDER BY t ASC
     """, params)

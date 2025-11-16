@@ -1,5 +1,5 @@
 /**
- * Dashboard JavaScript - Module D Real-time Analytics
+ * Dashboard JavaScript Real-time Analytics
  * Handles WebSocket connections, chart updates, and UI interactions
  */
 

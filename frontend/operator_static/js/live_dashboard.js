@@ -1,5 +1,5 @@
 /**
- * Dashboard JavaScript - Module D Real-time Analytics
+ * Dashboard JavaScript -Real-time Analytics
  * Handles WebSocket connections, chart updates, and UI interactions
  */
 
@@ -14,6 +14,8 @@ class HoneypotDashboard {
         this.eventQueue = [];
         this.updateThrottle = null;
         this.loginTime = null; // Store login time
+        this.latestEventTime = null; // Track the latest event timestamp
+        this.isFilterActive = false; // Track if user has applied filters
 
         this.init();
     }
@@ -222,6 +224,12 @@ class HoneypotDashboard {
     }
 
     handleNewEvent(event) {
+        // If user has applied date filter, don't show new real-time events
+        if (this.isFilterActive) {
+            console.log('⏸️ Filter active - skipping real-time event display');
+            return;
+        }
+
         // Add to event queue for throttled updates
         this.eventQueue.push(event);
 
@@ -289,6 +297,12 @@ class HoneypotDashboard {
         const eventTime = new Date(timestamp);
         const timeStr = eventTime.toLocaleTimeString();
 
+        // Update latest event time
+        if (!this.latestEventTime || eventTime > new Date(this.latestEventTime)) {
+            this.latestEventTime = timestamp;
+            this.updateStatus('last', timeStr);
+        }
+
         eventCard.innerHTML = `
             <div class="event-header">
                 <span class="event-ip">${ip}</span>
@@ -319,7 +333,9 @@ class HoneypotDashboard {
         setTimeout(() => {
             eventCard.classList.remove('new');
         }, 500);
-    } populateInitialEvents(events) {
+    }
+
+    populateInitialEvents(events) {
         const eventsContainer = document.getElementById('events-feed');
         if (!eventsContainer) return;
 
@@ -352,15 +368,30 @@ class HoneypotDashboard {
             return;
         }
 
+        // Show "Live Mode" indicator
+        const liveModeMessage = document.createElement('div');
+        liveModeMessage.className = 'live-mode-message';
+        liveModeMessage.style.cssText = 'background: #27ae60; color: white; padding: 1rem; text-align: center; margin-bottom: 1rem; border-radius: 5px; font-weight: bold;';
+        liveModeMessage.innerHTML = `🔴 LIVE MODE - Showing attacks since ${this.loginTime}`;
+        eventsContainer.appendChild(liveModeMessage);
+
         filteredEvents.forEach(event => {
             const eventCard = document.createElement('div');
             eventCard.className = 'event-card';
             eventCard.onclick = () => this.showEventDetail(event.id);
 
+            const eventTime = new Date(event.timestamp);
+            const timeStr = eventTime.toLocaleTimeString();
+
+            // Track latest event time
+            if (!this.latestEventTime || eventTime > new Date(this.latestEventTime)) {
+                this.latestEventTime = event.timestamp;
+            }
+
             eventCard.innerHTML = `
                 <div class="event-header">
                     <span class="event-ip">${event.client_ip}</span>
-                    <span class="event-time">${new Date(event.timestamp).toLocaleTimeString()}</span>
+                    <span class="event-time">${timeStr}</span>
                 </div>
                 <div class="event-location">${event.country || 'Unknown'}, ${event.city || 'Unknown'}</div>
                 <div class="event-details">
@@ -371,12 +402,100 @@ class HoneypotDashboard {
 
             eventsContainer.appendChild(eventCard);
         });
+
+        // Update the "Last Attack" status with the actual latest event
+        if (this.latestEventTime) {
+            this.updateStatus('last', new Date(this.latestEventTime).toLocaleTimeString());
+        }
+    }
+
+    populateFilteredEvents(events) {
+        const eventsContainer = document.getElementById('events-feed');
+        if (!eventsContainer) return;
+
+        eventsContainer.innerHTML = '';
+
+        // When user applies filters, show ALL returned events (no client-side filtering by login time)
+        console.log(`🔍 Showing ${events.length} filtered events from backend`);
+
+        // Show message if no events
+        if (!events || events.length === 0) {
+            eventsContainer.innerHTML = `
+                <div class="no-events-message" style="text-align: center; padding: 3rem; color: #7f8c8d;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
+                    <h3 style="margin: 0 0 0.5rem 0; color: #2c3e50;">No Events Found</h3>
+                    <p style="margin: 0; font-size: 0.9rem;">No events match your filter criteria.</p>
+                    <p style="margin: 0.5rem 0 0 0; font-size: 0.85rem; color: #95a5a6;">
+                        Try adjusting your filters or click "Clear" to reset.
+                    </p>
+                </div>
+            `;
+            return;
+        }
+
+        // Show filter active message at the top
+        const filterMessage = document.createElement('div');
+        filterMessage.className = 'filter-active-message';
+        filterMessage.style.cssText = 'background: #3498db; color: white; padding: 1rem; text-align: center; margin-bottom: 1rem; border-radius: 5px; font-weight: bold;';
+
+        const dateFilter = this.filters.since;
+        if (dateFilter) {
+            filterMessage.innerHTML = `📅 Viewing events from: ${dateFilter} | <span style="cursor: pointer; text-decoration: underline;" onclick="dashboard.clearFilters()">Clear Filter</span>`;
+        } else {
+            filterMessage.innerHTML = `🔍 Filters Active | <span style="cursor: pointer; text-decoration: underline;" onclick="dashboard.clearFilters()">Clear Filters</span>`;
+        }
+        eventsContainer.appendChild(filterMessage);
+
+        // Render all filtered events
+        events.forEach(event => {
+            const eventCard = document.createElement('div');
+            eventCard.className = 'event-card';
+            eventCard.onclick = () => this.showEventDetail(event.id);
+
+            const eventTime = new Date(event.timestamp);
+            const timeStr = eventTime.toLocaleTimeString();
+
+            // Track latest event time
+            if (!this.latestEventTime || eventTime > new Date(this.latestEventTime)) {
+                this.latestEventTime = event.timestamp;
+            }
+
+            eventCard.innerHTML = `
+                <div class="event-header">
+                    <span class="event-ip">${event.client_ip}</span>
+                    <span class="event-time">${timeStr}</span>
+                </div>
+                <div class="event-location">${event.country || 'Unknown'}, ${event.city || 'Unknown'}</div>
+                <div class="event-details">
+                    ${event.endpoint || '/login'} • ${(event.user_agent || '').substring(0, 50)}...
+                </div>
+                <span class="attack-badge">${event.attack_type || 'login_attempt'}</span>
+            `;
+
+            eventsContainer.appendChild(eventCard);
+        });
+
+        // Update the "Last Attack" status with the actual latest event
+        if (this.latestEventTime) {
+            this.updateStatus('last', new Date(this.latestEventTime).toLocaleTimeString());
+        }
     }
 
     updateStats() {
         const timeRange = document.getElementById('time-range')?.value || '24';
 
-        fetch(`/api/live/stats?hours=${timeRange}`)
+        // Build query params with same filters as events
+        const params = new URLSearchParams();
+        params.append('hours', timeRange);
+
+        // Add current filters if active
+        if (this.filters && Object.keys(this.filters).length > 0) {
+            Object.entries(this.filters).forEach(([key, value]) => {
+                if (value) params.append(key, value);
+            });
+        }
+
+        fetch(`/api/live/stats?${params.toString()}`)
             .then(response => response.json())
             .then(data => {
                 // Update status bar
@@ -475,7 +594,7 @@ class HoneypotDashboard {
         content.innerHTML = '<div class="loading">Loading event details...</div>';
         modal.style.display = 'block';
 
-        fetch(`/api/event/${eventId}`)
+        fetch(`/api/live/event/${eventId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
@@ -504,7 +623,7 @@ class HoneypotDashboard {
                         <pre class="json-display">${JSON.stringify(event.headers || {}, null, 2)}</pre>
                         
                         <div style="margin-top: 1rem;">
-                            <a href="/operator/event/${eventId}" target="_blank" class="detail-link">
+                            <a href="/live/event/${eventId}" target="_blank" class="detail-link">
                                 View Full Details
                             </a>
                         </div>
@@ -524,17 +643,25 @@ class HoneypotDashboard {
             since: document.getElementById('filter-since')?.value || ''
         };
 
-        // If user applies filters, respect them (including showing all data if since is before login)
+        // Mark that filters are active
+        this.isFilterActive = true;
+
+        // When date filter is applied, show ONLY events from that date
         this.loadFilteredEvents();
         this.updateStats();
         this.updateMapData();
-    } clearFilters() {
+    }
+
+    clearFilters() {
         document.getElementById('filter-ip').value = '';
         document.getElementById('filter-country').value = '';
         document.getElementById('filter-type').value = '';
         document.getElementById('filter-since').value = '';
 
         this.filters = {};
+        this.isFilterActive = false; // Clear filter active flag
+
+        // Go back to showing only post-login events
         this.loadInitialData();
     }
 
@@ -547,7 +674,8 @@ class HoneypotDashboard {
         fetch(`/api/live/events?${params.toString()}`)
             .then(response => response.json())
             .then(data => {
-                this.populateInitialEvents(data.events || []);
+                // When user applies filters, show ALL returned events (don't apply client-side login time filter)
+                this.populateFilteredEvents(data.events || []);
             })
             .catch(error => {
                 console.error('Failed to load filtered events:', error);
