@@ -21,7 +21,7 @@ app = Flask(__name__,
            template_folder='../frontend/operator_templates',
            static_folder='../frontend/operator_static')
 app.config['SECRET_KEY'] = 'live-honeypot-super-secret-key-2024'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Configuration
 OPERATOR_PASSWORD = 'honeypot2024!'
