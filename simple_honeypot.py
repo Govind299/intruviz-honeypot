@@ -181,6 +181,48 @@ def create_simple_honeypot():
             username = request.form.get('username', '')
             password = request.form.get('password', '')
             
+            # Detect attack type based on input patterns
+            attack_type = 'login_attempt'  # Default
+            
+            # SQL Injection patterns
+            sql_patterns = ['SELECT', 'UNION', 'DROP', 'INSERT', 'UPDATE', 'DELETE', '--', ';--', 
+                          'OR 1=1', "' OR '1'='1", '" OR "1"="1', 'OR 1=1--', 'EXEC', 'EXECUTE',
+                          'xp_', 'sp_', 'INFORMATION_SCHEMA', 'WAITFOR DELAY']
+            
+            # XSS patterns
+            xss_patterns = ['<script>', '</script>', 'javascript:', 'onerror=', 'onload=', 
+                          '<img', '<iframe', 'alert(', 'eval(', 'document.cookie']
+            
+            # Command injection patterns
+            cmd_patterns = ['&&', '||', ';', '|', '`', '$(', '${', '../', '..\\']
+            
+            # LDAP injection patterns
+            ldap_patterns = ['*)(', ')(cn=', ')(uid=', ')(mail=']
+            
+            # Check username and password for attack patterns
+            combined_input = (username + password).upper()
+            username_lower = username.lower()
+            password_lower = password.lower()
+            
+            # Detect SQL Injection
+            if any(pattern.upper() in combined_input for pattern in sql_patterns):
+                attack_type = 'sql_injection'
+            # Detect XSS
+            elif any(pattern.lower() in username_lower or pattern.lower() in password_lower for pattern in xss_patterns):
+                attack_type = 'xss'
+            # Detect Command Injection
+            elif any(pattern in username or pattern in password for pattern in cmd_patterns):
+                attack_type = 'command_injection'
+            # Detect LDAP Injection
+            elif any(pattern in username or pattern in password for pattern in ldap_patterns):
+                attack_type = 'ldap_injection'
+            # Check for admin unlock attempt
+            elif password == 'admin123':
+                attack_type = 'admin_unlock'
+            # Check for brute force (common passwords)
+            elif password in ['123456', 'password', 'admin', 'root', '12345678', 'qwerty', 'abc123']:
+                attack_type = 'brute_force'
+            
             # Enhanced logging with geolocation attempt
             log_entry = {
                 'timestamp': datetime.now().isoformat(),
@@ -193,7 +235,7 @@ def create_simple_honeypot():
                 'country': 'Unknown',  # Would be filled by geolocation
                 'region': 'Unknown',
                 'city': 'Unknown',
-                'attack_type': 'credential_attempt'
+                'attack_type': attack_type
             }
             
             # Enhanced geolocation lookup
@@ -233,8 +275,8 @@ def create_simple_honeypot():
                     INSERT INTO events (
                         id, timestamp, client_ip, method, endpoint, 
                         headers, form_data, user_agent, raw_json,
-                        country, region, city, enriched
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        country, region, city, latitude, longitude, isp, enriched, attack_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     str(uuid.uuid4()),
                     log_entry['timestamp'],
@@ -248,7 +290,11 @@ def create_simple_honeypot():
                     log_entry['country'],
                     log_entry['region'],
                     log_entry['city'],
-                    1  # enriched = true
+                    log_entry.get('latitude', 0.0),
+                    log_entry.get('longitude', 0.0),
+                    log_entry.get('isp', 'Unknown'),
+                    1,  # enriched = true
+                    log_entry['attack_type']
                 ))
                 
                 conn.commit()

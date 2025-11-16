@@ -14,7 +14,7 @@ from honeypot.storage import (
     query_stats_by_time, query_map_points, get_event_by_id
 )
 
-def get_dashboard_stats(since_hours: int = 24, since_time: str = None) -> Dict[str, Any]:
+def get_dashboard_stats(since_hours: int = 24, since_time: str = None, until_time: str = None, filters: Dict[str, Any] = None) -> Dict[str, Any]:
     """Get comprehensive dashboard statistics"""
     
     # Calculate since timestamp - use provided since_time or calculate from hours
@@ -23,13 +23,20 @@ def get_dashboard_stats(since_hours: int = 24, since_time: str = None) -> Dict[s
     else:
         since_timestamp = (datetime.utcnow() - timedelta(hours=since_hours)).isoformat()
     
-    # Get various statistics
-    top_ips = query_top_ips(limit=10, since=since_timestamp)
-    top_countries = query_top_countries(limit=10, since=since_timestamp)
-    timeline = query_stats_by_time(bucket='hour', since=since_timestamp)
-    recent_events = query_recent(limit=50, filters={'since': since_timestamp})
+    # Build filters for querying
+    query_filters = filters.copy() if filters else {}
+    if 'since' not in query_filters:
+        query_filters['since'] = since_timestamp
+    if until_time:
+        query_filters['until'] = until_time
     
-    # Calculate attack type distribution
+    # Get various statistics using the same filters
+    top_ips = query_top_ips(limit=10, since=query_filters.get('since'), until=query_filters.get('until'))
+    top_countries = query_top_countries(limit=10, since=query_filters.get('since'), until=query_filters.get('until'))
+    timeline = query_stats_by_time(bucket='hour', since=query_filters.get('since'), until=query_filters.get('until'))
+    recent_events = query_recent(limit=1000, filters=query_filters)  # Increased limit to get all filtered events
+    
+    # Calculate attack type distribution from filtered events
     attack_types = {}
     for event in recent_events:
         attack_type = event.get('attack_type', 'unknown')
@@ -42,7 +49,8 @@ def get_dashboard_stats(since_hours: int = 24, since_time: str = None) -> Dict[s
         'attack_types': [{'type': k, 'count': v} for k, v in attack_types.items()],
         'total_events': len(recent_events),
         'timeframe_hours': since_hours,
-        'since_time': since_timestamp,
+        'since_time': query_filters.get('since'),
+        'until_time': query_filters.get('until'),
         'generated_at': datetime.utcnow().isoformat()
     }
 
