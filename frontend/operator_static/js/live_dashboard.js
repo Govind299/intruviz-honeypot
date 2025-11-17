@@ -16,6 +16,7 @@ class HoneypotDashboard {
         this.loginTime = null; // Store login time
         this.latestEventTime = null; // Track the latest event timestamp
         this.isFilterActive = false; // Track if user has applied filters
+        this.totalEventsCount = 0; // Store total events count (never changes with filters)
 
         this.init();
     }
@@ -196,9 +197,29 @@ class HoneypotDashboard {
         }
 
         // Filter controls
-        document.getElementById('btn-apply-filters')?.addEventListener('click', () => {
+        const applyBtn = document.getElementById('btn-apply-filters');
+        applyBtn?.addEventListener('click', () => {
             this.applyFilters();
         });
+
+        // Add listeners to all filter inputs to enable/disable Apply button
+        const filterInputs = [
+            document.getElementById('filter-ip'),
+            document.getElementById('filter-country'),
+            document.getElementById('filter-type'),
+            document.getElementById('filter-since'),
+            document.getElementById('filter-time-range')
+        ];
+
+        filterInputs.forEach(input => {
+            if (input) {
+                input.addEventListener('input', () => this.checkFiltersChanged());
+                input.addEventListener('change', () => this.checkFiltersChanged());
+            }
+        });
+
+        // Initially disable Apply button
+        this.checkFiltersChanged();
 
         document.getElementById('btn-clear-filters')?.addEventListener('click', () => {
             this.clearFilters();
@@ -372,7 +393,7 @@ class HoneypotDashboard {
         const liveModeMessage = document.createElement('div');
         liveModeMessage.className = 'live-mode-message';
         liveModeMessage.style.cssText = 'background: #27ae60; color: white; padding: 1rem; text-align: center; margin-bottom: 1rem; border-radius: 5px; font-weight: bold;';
-        liveModeMessage.innerHTML = `🔴 LIVE MODE - Showing attacks since ${this.loginTime}`;
+        liveModeMessage.innerHTML = `🔴 LIVE MODE`;
         eventsContainer.appendChild(liveModeMessage);
 
         filteredEvents.forEach(event => {
@@ -407,6 +428,9 @@ class HoneypotDashboard {
         if (this.latestEventTime) {
             this.updateStatus('last', new Date(this.latestEventTime).toLocaleTimeString());
         }
+
+        // Update button states after loading initial events
+        this.checkFiltersChanged();
     }
 
     populateFilteredEvents(events) {
@@ -479,35 +503,47 @@ class HoneypotDashboard {
         if (this.latestEventTime) {
             this.updateStatus('last', new Date(this.latestEventTime).toLocaleTimeString());
         }
+
+        // Update button states after loading filtered events
+        this.checkFiltersChanged();
     }
 
     updateStats() {
-        const timeRange = document.getElementById('time-range')?.value || '24';
-
         // Build query params with same filters as events
         const params = new URLSearchParams();
-        params.append('hours', timeRange);
+
+        // Use time range from filters if applied, otherwise default to 24 hours
+        const timeRangeHours = this.filters?.timeRange || '24';
+        params.append('hours', timeRangeHours);
 
         // Add current filters if active
         if (this.filters && Object.keys(this.filters).length > 0) {
             Object.entries(this.filters).forEach(([key, value]) => {
-                if (value) params.append(key, value);
+                if (value && key !== 'timeRange') { // Don't add timeRange to params, we use 'hours' instead
+                    params.append(key, value);
+                }
             });
         }
 
         fetch(`/api/live/stats?${params.toString()}`)
             .then(response => response.json())
             .then(data => {
-                // Update status bar
-                this.updateStatus('total', data.total_events.toLocaleString());
+                // ALWAYS use total_all_events from backend (ALL events in database)
+                // This never changes with filters
+                console.log('📊 Received total_all_events from backend:', data.total_all_events);
+                if (data.total_all_events !== undefined) {
+                    this.totalEventsCount = data.total_all_events;
+                    console.log('✅ Updated totalEventsCount to:', this.totalEventsCount);
+                }
+
+                // Always display the total count of ALL events in database
+                console.log('🔢 Displaying total events:', this.totalEventsCount.toLocaleString());
+                this.updateStatus('total', this.totalEventsCount.toLocaleString());
                 this.updateStatus('countries', data.top_countries.length);
 
-                if (data.timeline && data.timeline.length > 0) {
-                    const lastEvent = data.timeline[data.timeline.length - 1];
-                    this.updateStatus('last', new Date(lastEvent.time).toLocaleTimeString());
-                } else {
-                    this.updateStatus('last', 'No attacks yet');
-                }
+                // Don't update "last attack" time from filtered stats
+                // It should always show the most recent attack regardless of filters
+                // The latestEventTime is set by populateInitialEvents and handleNewEvent
 
                 // Update charts
                 this.updateTimelineChart(data.timeline);
@@ -635,21 +671,98 @@ class HoneypotDashboard {
             });
     }
 
-    applyFilters() {
+    checkFiltersChanged() {
+        // Check if any filter has a value
+        const hasFilters =
+            (document.getElementById('filter-ip')?.value || '') !== '' ||
+            (document.getElementById('filter-country')?.value || '') !== '' ||
+            (document.getElementById('filter-type')?.value || '') !== '' ||
+            (document.getElementById('filter-since')?.value || '') !== '' ||
+            (document.getElementById('filter-time-range')?.value || '') !== '';
+
+        // Enable/disable Apply Filters button
+        const applyBtn = document.getElementById('btn-apply-filters');
+        if (applyBtn) {
+            if (hasFilters) {
+                applyBtn.disabled = false;
+                applyBtn.style.opacity = '1';
+                applyBtn.style.cursor = 'pointer';
+            } else {
+                applyBtn.disabled = true;
+                applyBtn.style.opacity = '0.5';
+                applyBtn.style.cursor = 'not-allowed';
+            }
+        }
+
+        // Enable/disable Clear button (only if filters are applied)
+        const clearBtn = document.getElementById('btn-clear-filters');
+        if (clearBtn) {
+            if (hasFilters || this.isFilterActive) {
+                clearBtn.disabled = false;
+                clearBtn.style.opacity = '1';
+                clearBtn.style.cursor = 'pointer';
+            } else {
+                clearBtn.disabled = true;
+                clearBtn.style.opacity = '0.5';
+                clearBtn.style.cursor = 'not-allowed';
+            }
+        }
+
+        // Enable/disable Export CSV button (only if there are events to export)
+        const exportBtn = document.getElementById('btn-export-csv');
+        if (exportBtn) {
+            // Check if there are any events displayed in the feed
+            const eventsContainer = document.getElementById('events-feed');
+            const hasEvents = eventsContainer && eventsContainer.children.length > 0;
+
+            if (hasEvents) {
+                exportBtn.disabled = false;
+                exportBtn.style.opacity = '1';
+                exportBtn.style.cursor = 'pointer';
+            } else {
+                exportBtn.disabled = true;
+                exportBtn.style.opacity = '0.5';
+                exportBtn.style.cursor = 'not-allowed';
+            }
+        }
+    } applyFilters() {
+        const dateFilter = document.getElementById('filter-since')?.value || '';
+        const timeRangeFilter = document.getElementById('filter-time-range')?.value || '';
+
+        // Time range filter takes precedence over date filter
+        let sinceValue = '';
+        let timeRangeHours = '';
+
+        if (timeRangeFilter) {
+            // Calculate timestamp for time range (hours ago from now)
+            const hoursAgo = parseInt(timeRangeFilter);
+            const now = new Date();
+            const sinceDate = new Date(now.getTime() - (hoursAgo * 60 * 60 * 1000));
+            sinceValue = sinceDate.toISOString();
+            timeRangeHours = timeRangeFilter; // Store for stats API
+        } else if (dateFilter) {
+            // Use the selected date if no time range is selected
+            sinceValue = dateFilter;
+        }
+
         this.filters = {
             ip: document.getElementById('filter-ip')?.value || '',
             country: document.getElementById('filter-country')?.value || '',
             type: document.getElementById('filter-type')?.value || '',
-            since: document.getElementById('filter-since')?.value || ''
+            since: sinceValue,
+            timeRange: timeRangeHours // Store time range for stats
         };
 
         // Mark that filters are active
         this.isFilterActive = true;
 
-        // When date filter is applied, show ONLY events from that date
+        // When filters are applied, update everything
         this.loadFilteredEvents();
         this.updateStats();
         this.updateMapData();
+
+        // Update button states
+        this.checkFiltersChanged();
     }
 
     clearFilters() {
@@ -657,9 +770,13 @@ class HoneypotDashboard {
         document.getElementById('filter-country').value = '';
         document.getElementById('filter-type').value = '';
         document.getElementById('filter-since').value = '';
+        document.getElementById('filter-time-range').value = '';
 
         this.filters = {};
         this.isFilterActive = false; // Clear filter active flag
+
+        // Re-check to disable Apply button
+        this.checkFiltersChanged();
 
         // Go back to showing only post-login events
         this.loadInitialData();
@@ -684,11 +801,22 @@ class HoneypotDashboard {
 
     exportCSV() {
         const params = new URLSearchParams();
-        Object.entries(this.filters).forEach(([key, value]) => {
-            if (value) params.append(key, value);
-        });
 
-        window.open(`/api/export/csv?${params.toString()}`, '_blank');
+        // If filters are active, use them; otherwise use login time as default
+        if (this.isFilterActive && this.filters) {
+            Object.entries(this.filters).forEach(([key, value]) => {
+                if (value && key !== 'timeRange') { // Don't send timeRange, send 'since' instead
+                    params.append(key, value);
+                }
+            });
+        } else {
+            // No filters applied - export all events since login
+            if (this.loginTime) {
+                params.append('since', this.loginTime);
+            }
+        }
+
+        window.open(`/api/live/export/csv?${params.toString()}`, '_blank');
     }
 
     loadInitialData() {

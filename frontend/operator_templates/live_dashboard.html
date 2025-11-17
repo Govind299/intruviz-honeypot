@@ -29,7 +29,7 @@
     <header class="dashboard-header">
         <div class="header-content">
             <div class="header-left">
-                <h1>🔴 Live Operator Dashboard</h1>
+                <h1>IntruViz - Live Operator Dashboard</h1>
                 <span class="module-badge">Real-Time Only - Post-Login Events</span>
             </div>
             <div class="header-right">
@@ -76,27 +76,25 @@
                     <option value="login_attempt">Login Attempt</option>
                     <option value="sql_injection">SQL Injection</option>
                     <option value="xss">XSS</option>
+                    <option value="command_injection">Command Injection</option>
+                    <option value="ldap_injection">LDAP Injection</option>
+                    <option value="admin_unlock">Admin Unlock</option>
+                    <option value="brute_force">Brute Force</option>
                 </select>
                 <input type="date" id="filter-since"
                     style="cursor: pointer; pointer-events: auto; z-index: 100; background: #2c3e50; color: white; border: 1px solid #34495e; padding: 0.5rem; border-radius: 5px;"
                     title="Select date to view historical events" />
+                <select id="filter-time-range"
+                    style="background: #2c3e50; color: white; border: 1px solid #34495e; padding: 0.5rem; border-radius: 5px;">
+                    <option value="" selected>Select Time Range</option>
+                    <option value="1">Last 1 Hour</option>
+                    <option value="6">Last 6 Hours</option>
+                    <option value="24">Last 24 Hours</option>
+                    <option value="168">Last 7 Days</option>
+                </select>
                 <button id="btn-apply-filters">Apply Filters</button>
                 <button id="btn-clear-filters">Clear</button>
                 <button id="btn-export-csv">Export CSV</button>
-            </div>
-            <div class="view-controls">
-                <label>
-                    <input type="checkbox" id="auto-scroll" checked /> Auto-scroll events
-                </label>
-                <label>
-                    Time Range:
-                    <select id="time-range">
-                        <option value="1">Last Hour</option>
-                        <option value="6">Last 6 Hours</option>
-                        <option value="24" selected>Last 24 Hours</option>
-                        <option value="168">Last Week</option>
-                    </select>
-                </label>
             </div>
         </section>
 
