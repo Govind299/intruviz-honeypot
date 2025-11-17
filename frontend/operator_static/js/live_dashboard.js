@@ -801,9 +801,20 @@ class HoneypotDashboard {
 
     exportCSV() {
         const params = new URLSearchParams();
-        Object.entries(this.filters).forEach(([key, value]) => {
-            if (value) params.append(key, value);
-        });
+
+        // If filters are active, use them; otherwise use login time as default
+        if (this.isFilterActive && this.filters) {
+            Object.entries(this.filters).forEach(([key, value]) => {
+                if (value && key !== 'timeRange') { // Don't send timeRange, send 'since' instead
+                    params.append(key, value);
+                }
+            });
+        } else {
+            // No filters applied - export all events since login
+            if (this.loginTime) {
+                params.append('since', this.loginTime);
+            }
+        }
 
         window.open(`/api/live/export/csv?${params.toString()}`, '_blank');
     }
