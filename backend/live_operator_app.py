@@ -275,6 +275,7 @@ def api_live_export_csv():
     from flask import Response
     import csv
     from io import StringIO
+    from datetime import datetime, timedelta
     
     # Get user-provided filters (same as events endpoint)
     user_since = request.args.get('since', '')
@@ -289,7 +290,6 @@ def api_live_export_csv():
     if user_since:
         if len(user_since) == 10 and user_since.count('-') == 2:
             # Date only
-            from datetime import datetime, timedelta
             date_obj = datetime.strptime(user_since, '%Y-%m-%d')
             next_day = date_obj + timedelta(days=1)
             filters['since'] = f"{user_since} 00:00:00"
@@ -297,7 +297,9 @@ def api_live_export_csv():
         elif 'T' in user_since:
             # ISO format timestamp from time range filter
             iso_date = datetime.fromisoformat(user_since.replace('Z', '+00:00'))
-            filters['since'] = iso_date.strftime('%Y-%m-%d %H:%M:%S')
+            # Convert UTC to local time (database stores in local time ISO format)
+            local_date = iso_date.astimezone()
+            filters['since'] = local_date.isoformat()
         else:
             filters['since'] = user_since
     else:
