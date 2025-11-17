@@ -197,9 +197,29 @@ class HoneypotDashboard {
         }
 
         // Filter controls
-        document.getElementById('btn-apply-filters')?.addEventListener('click', () => {
+        const applyBtn = document.getElementById('btn-apply-filters');
+        applyBtn?.addEventListener('click', () => {
             this.applyFilters();
         });
+
+        // Add listeners to all filter inputs to enable/disable Apply button
+        const filterInputs = [
+            document.getElementById('filter-ip'),
+            document.getElementById('filter-country'),
+            document.getElementById('filter-type'),
+            document.getElementById('filter-since'),
+            document.getElementById('filter-time-range')
+        ];
+
+        filterInputs.forEach(input => {
+            if (input) {
+                input.addEventListener('input', () => this.checkFiltersChanged());
+                input.addEventListener('change', () => this.checkFiltersChanged());
+            }
+        });
+
+        // Initially disable Apply button
+        this.checkFiltersChanged();
 
         document.getElementById('btn-clear-filters')?.addEventListener('click', () => {
             this.clearFilters();
@@ -373,7 +393,7 @@ class HoneypotDashboard {
         const liveModeMessage = document.createElement('div');
         liveModeMessage.className = 'live-mode-message';
         liveModeMessage.style.cssText = 'background: #27ae60; color: white; padding: 1rem; text-align: center; margin-bottom: 1rem; border-radius: 5px; font-weight: bold;';
-        liveModeMessage.innerHTML = `🔴 LIVE MODE - Showing attacks since ${this.loginTime}`;
+        liveModeMessage.innerHTML = `🔴 LIVE MODE`;
         eventsContainer.appendChild(liveModeMessage);
 
         filteredEvents.forEach(event => {
@@ -408,6 +428,9 @@ class HoneypotDashboard {
         if (this.latestEventTime) {
             this.updateStatus('last', new Date(this.latestEventTime).toLocaleTimeString());
         }
+
+        // Update button states after loading initial events
+        this.checkFiltersChanged();
     }
 
     populateFilteredEvents(events) {
@@ -480,6 +503,9 @@ class HoneypotDashboard {
         if (this.latestEventTime) {
             this.updateStatus('last', new Date(this.latestEventTime).toLocaleTimeString());
         }
+
+        // Update button states after loading filtered events
+        this.checkFiltersChanged();
     }
 
     updateStats() {
@@ -645,7 +671,61 @@ class HoneypotDashboard {
             });
     }
 
-    applyFilters() {
+    checkFiltersChanged() {
+        // Check if any filter has a value
+        const hasFilters =
+            (document.getElementById('filter-ip')?.value || '') !== '' ||
+            (document.getElementById('filter-country')?.value || '') !== '' ||
+            (document.getElementById('filter-type')?.value || '') !== '' ||
+            (document.getElementById('filter-since')?.value || '') !== '' ||
+            (document.getElementById('filter-time-range')?.value || '') !== '';
+
+        // Enable/disable Apply Filters button
+        const applyBtn = document.getElementById('btn-apply-filters');
+        if (applyBtn) {
+            if (hasFilters) {
+                applyBtn.disabled = false;
+                applyBtn.style.opacity = '1';
+                applyBtn.style.cursor = 'pointer';
+            } else {
+                applyBtn.disabled = true;
+                applyBtn.style.opacity = '0.5';
+                applyBtn.style.cursor = 'not-allowed';
+            }
+        }
+
+        // Enable/disable Clear button (only if filters are applied)
+        const clearBtn = document.getElementById('btn-clear-filters');
+        if (clearBtn) {
+            if (hasFilters || this.isFilterActive) {
+                clearBtn.disabled = false;
+                clearBtn.style.opacity = '1';
+                clearBtn.style.cursor = 'pointer';
+            } else {
+                clearBtn.disabled = true;
+                clearBtn.style.opacity = '0.5';
+                clearBtn.style.cursor = 'not-allowed';
+            }
+        }
+
+        // Enable/disable Export CSV button (only if there are events to export)
+        const exportBtn = document.getElementById('btn-export-csv');
+        if (exportBtn) {
+            // Check if there are any events displayed in the feed
+            const eventsContainer = document.getElementById('events-feed');
+            const hasEvents = eventsContainer && eventsContainer.children.length > 0;
+
+            if (hasEvents) {
+                exportBtn.disabled = false;
+                exportBtn.style.opacity = '1';
+                exportBtn.style.cursor = 'pointer';
+            } else {
+                exportBtn.disabled = true;
+                exportBtn.style.opacity = '0.5';
+                exportBtn.style.cursor = 'not-allowed';
+            }
+        }
+    } applyFilters() {
         const dateFilter = document.getElementById('filter-since')?.value || '';
         const timeRangeFilter = document.getElementById('filter-time-range')?.value || '';
 
@@ -656,8 +736,8 @@ class HoneypotDashboard {
         if (timeRangeFilter) {
             // Calculate timestamp for time range (hours ago from now)
             const hoursAgo = parseInt(timeRangeFilter);
-            const sinceDate = new Date();
-            sinceDate.setHours(sinceDate.getHours() - hoursAgo);
+            const now = new Date();
+            const sinceDate = new Date(now.getTime() - (hoursAgo * 60 * 60 * 1000));
             sinceValue = sinceDate.toISOString();
             timeRangeHours = timeRangeFilter; // Store for stats API
         } else if (dateFilter) {
@@ -680,6 +760,9 @@ class HoneypotDashboard {
         this.loadFilteredEvents();
         this.updateStats();
         this.updateMapData();
+
+        // Update button states
+        this.checkFiltersChanged();
     }
 
     clearFilters() {
@@ -691,6 +774,9 @@ class HoneypotDashboard {
 
         this.filters = {};
         this.isFilterActive = false; // Clear filter active flag
+
+        // Re-check to disable Apply button
+        this.checkFiltersChanged();
 
         // Go back to showing only post-login events
         this.loadInitialData();

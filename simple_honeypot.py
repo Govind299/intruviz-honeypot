@@ -238,7 +238,6 @@ def create_simple_honeypot():
                 'attack_type': attack_type
             }
             
-            # Enhanced geolocation lookup
             geo_data = get_ip_geolocation(request.remote_addr)
             log_entry.update({
                 'country': geo_data.get('country', 'Unknown'),
@@ -426,9 +425,6 @@ def create_simple_honeypot():
                     </div>
                     <button type="submit" class="btn">Login</button>
                 </form>
-                <div class="security-notice">
-                    This is a secure system. All access attempts are logged.
-                </div>
             </div>
         </body>
         </html>

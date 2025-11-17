@@ -112,11 +112,13 @@ def api_live_events():
         elif 'T' in user_since:
             # ISO format timestamp from time range filter (e.g., "2025-11-16T11:51:58.000Z")
             from datetime import datetime
-            # Parse ISO format and convert to database format
+            # Parse ISO format (UTC) and convert to local time for database comparison
             iso_date = datetime.fromisoformat(user_since.replace('Z', '+00:00'))
-            filters['since'] = iso_date.strftime('%Y-%m-%d %H:%M:%S')
+            # Convert UTC to local time (database stores in local time ISO format)
+            local_date = iso_date.astimezone()
+            filters['since'] = local_date.isoformat()
             print(f"⏰ User applied time range filter: {user_since}")
-            print(f"⏰ Converted to: {filters['since']}")
+            print(f"⏰ Converted to local time: {filters['since']}")
             print(f"⏰ This should show events FROM {filters['since']} TO NOW")
         else:
             # Already has time component - use as-is (for backward compatibility)
@@ -188,10 +190,12 @@ def api_live_stats():
         elif 'T' in user_since:
             # ISO format timestamp from time range filter
             iso_date = datetime.fromisoformat(user_since.replace('Z', '+00:00'))
-            since_time = iso_date.strftime('%Y-%m-%d %H:%M:%S')
+            # Convert UTC to local time (database stores in local time ISO format)
+            local_date = iso_date.astimezone()
+            since_time = local_date.isoformat()
             filters['since'] = since_time
             print(f"📊 Stats time range filter: {user_since}")
-            print(f"📊 Converted to: {since_time}")
+            print(f"📊 Converted to local time: {since_time}")
         else:
             # Already has time component
             since_time = user_since
