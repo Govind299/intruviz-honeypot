@@ -16,7 +16,6 @@ This is a comprehensive honeypot system with real-time analytics, designed for c
 ### **Core Honeypot System:**
 - **Flask Web Honeypot**: Fake login pages and admin panels
 - **Attack Logging**: Dual JSONL + SQLite storage system  
-- **GeoIP Enrichment**: Premium location tracking with ipgeolocation.io
 - **Attack Simulation**: Automated testing with various attack patterns
 
 ### **Operator Dashboard & Real-time Analytics:** 
@@ -102,16 +101,6 @@ GET  /api/export/csv       # Export events as CSV
 
 # System
 GET  /health               # Health check endpoint
-```
-
-### **Real-time WebSocket**
-```
-# WebSocket namespace: /events
-ws://127.0.0.1:8090/socket.io/?EIO=4&transport=websocket
-
-# Events:
-- event.new     # New attack detected
-- event.updated # Event enrichment completed
 ```
 
 ### **Configuration**
