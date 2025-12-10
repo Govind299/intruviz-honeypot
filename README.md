@@ -84,30 +84,30 @@ python run_attacks.py
 
 ### **API Endpoints**
 ```
-# Authentication
+## Authentication
 POST /operator/login       # Authenticate with operator password
 GET  /operator/logout      # Clear session and logout
 
-# Dashboard Views  
+## Dashboard Views  
 GET  /operator             # Main dashboard interface
 GET  /operator/event/<id>  # Detailed event view
 
-# Data API
+## Data API
 GET  /api/events           # Paginated events with filtering
 GET  /api/event/<id>       # Single event details
 GET  /api/stats            # Dashboard statistics
 GET  /api/map_points       # Geolocation data for map
 GET  /api/export/csv       # Export events as CSV
 
-# System
+## System
 GET  /health               # Health check endpoint
 ```
 ### **Real-time WebSocket**
 ```
-# WebSocket namespace: /events
+## WebSocket namespace: /events
 ws://127.0.0.1:8090/socket.io/?EIO=4&transport=websocket
 
-# Events:
+## Events:
 - event.new     # New attack detected
 - event.updated # Event enrichment completed
 ```
@@ -202,17 +202,5 @@ honeypot-project/
 - **Honeypot Best Practices**: SANS Institute Guidelines
 
 ---
-
-## 📞 Support & Issues
-
-For educational use and research questions:
-1. Check the test suites for implementation examples
-2. Review configuration options in `honeypot/config.py`
-3. Examine API endpoints in `backend/operator_app.py`
-4. Test with provided sample data and scripts
-
 **Remember: This is educational software - use responsibly and legally!**
-
 ---
-
-*Last Updated: October 2024 - Module D (Real-time Analytics) v1.0*
