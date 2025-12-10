@@ -102,7 +102,15 @@ GET  /api/export/csv       # Export events as CSV
 # System
 GET  /health               # Health check endpoint
 ```
+### **Real-time WebSocket**
+```
+# WebSocket namespace: /events
+ws://127.0.0.1:8090/socket.io/?EIO=4&transport=websocket
 
+# Events:
+- event.new     # New attack detected
+- event.updated # Event enrichment completed
+```
 ### **Configuration**
 ```python
 # honeypot/config.py
