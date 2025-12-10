@@ -8,8 +8,7 @@ import time
 import random
 from datetime import datetime
 
-HONEYPOT_URL = "http://127.0.0.1:8080/login"
-
+HONEYPOT_URL = "http://192.168.30.107:8080/login" 
 # Different attack payloads categorized by type
 ATTACK_PAYLOADS = {
     'sql_injection': [
@@ -135,7 +134,7 @@ def generate_attacks(count_per_type=5, delay=1):
     print(f"   Failed: {total_attacks - successful_attacks}")
     print("="*80)
     print()
-    print("📊 Check your Live Operator Dashboard at: http://127.0.0.1:5001/live")
+    print("📊 Check your Live Operator Dashboard at: http://192.168.30.107:8080/login")
     print("   The attacks should be categorized by type in the analytics!")
 
 if __name__ == "__main__":
