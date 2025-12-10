@@ -13,13 +13,13 @@
 
 This is a comprehensive honeypot system with real-time analytics, designed for cybersecurity education and research. The project consists of multiple integrated modules:
 
-### **Module A-C: Core Honeypot System**
+### **Core Honeypot System:**
 - **Flask Web Honeypot**: Fake login pages and admin panels
 - **Attack Logging**: Dual JSONL + SQLite storage system  
 - **GeoIP Enrichment**: Premium location tracking with ipgeolocation.io
 - **Attack Simulation**: Automated testing with various attack patterns
 
-### **Module D: Operator Dashboard & Real-time Analytics** 
+### **Operator Dashboard & Real-time Analytics:** 
 - **Real-time Monitoring**: WebSocket-based live event streaming
 - **Interactive Dashboard**: Charts, maps, and analytics
 - **Attack Visualization**: Geographic attack origin mapping
@@ -72,7 +72,7 @@ python test_attacks.py
 python run_attacks.py
 
 
-## 🛠️ Module D - Operator Dashboard
+## 🛠️ Operator Dashboard
 
 ### **Features**
 - **🔴 Live Events Feed**: Real-time attack monitoring with auto-scroll
@@ -123,36 +123,6 @@ OPERATOR_PORT = 8090                     # Dashboard port
 OPERATOR_SESSION_SECRET = 'secret-key'   # Session encryption
 ```
 
----
-
-## 📊 Database Schema
-
-### **Events Table**
-```sql
-CREATE TABLE events (
-    id TEXT PRIMARY KEY,              -- Unique event ID
-    timestamp TEXT NOT NULL,          -- Event timestamp
-    client_ip TEXT NOT NULL,          -- Attacker IP address
-    method TEXT,                      -- HTTP method
-    endpoint TEXT,                    -- Target endpoint
-    headers TEXT,                     -- HTTP headers (JSON)
-    form_data TEXT,                   -- Form data (JSON)
-    user_agent TEXT,                  -- User agent string
-    raw_json TEXT,                    -- Full event data (JSON)
-    country TEXT,                     -- GeoIP country
-    region TEXT,                      -- GeoIP region/state
-    city TEXT,                        -- GeoIP city
-    latitude REAL,                    -- GPS latitude
-    longitude REAL,                   -- GPS longitude
-    isp TEXT,                         -- Internet service provider
-    enriched INTEGER DEFAULT 0,       -- Enrichment status
-    attack_type TEXT,                 -- Classified attack type
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
----
-
 ## 🧪 Testing
 
 ### **Run API Tests**
@@ -182,209 +152,6 @@ python test_attacks.py
 # http://127.0.0.1:8090/operator
 ```
 
----
-
-## 📈 Example Usage Scenarios
-
-### **Scenario 1: Basic Monitoring**
-```bash
-# Terminal 1: Start honeypot
-python simple_honeypot.py
-
-# Terminal 2: Start dashboard
-python backend/operator_app.py
-
-# Browser: Monitor at http://127.0.0.1:8090/operator
-```
-
-### **Scenario 2: Research & Analysis**
-```bash
-# Generate realistic attack data
-python test_attacks.py
-
-# Use dashboard filters to analyze:
-# - Geographic attack distribution
-# - Attack pattern timelines  
-# - Most targeted endpoints
-# - User agent analysis
-
-# Export data for further analysis
-# Dashboard -> Filters -> Export CSV
-```
-
-### **Scenario 3: Educational Demonstration**
-```bash
-# Set up for classroom demonstration
-python simple_honeypot.py  # Background
-python backend/operator_app.py  # Background
-
-# Show students:
-# - Live attack visualization
-# - Geographic attack origins
-# - Different attack techniques
-# - Response strategies
-```
-
----
-
-## 🔧 Advanced Configuration
-
-### **Custom Geolocation**
-```python
-# honeypot/config.py
-IPGEOLOCATION_API_KEY = "your-premium-api-key"
-
-# For local testing, use manual override:
-MANUAL_LOCATION_OVERRIDE = True
-YOUR_ACTUAL_LOCATION = {
-    'country': 'India',
-    'region': 'Gujarat', 
-    'city': 'Nadiad'
-}
-```
-
-### **Database Customization**
-```python
-# honeypot/config.py
-DATABASE_PATH = "/custom/path/events.db"
-JSONL_LOG_PATH = "/custom/path/events.jsonl"
-```
-
-### **Real-time Settings**
-```python
-# honeypot/config.py
-REALTIME_BATCH_INTERVAL = 1    # Batch updates every N seconds
-MAX_REALTIME_EVENTS = 1000     # Max events in memory
-```
-
----
-
-## 📊 Sample Data Examples
-
-### **Event JSON (Before Enrichment)**
-```json
-{
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "timestamp": "2024-10-26T15:30:45.123456",
-    "ip_address": "203.0.113.45",
-    "method": "POST",
-    "endpoint": "/login",
-    "form_data": {
-        "username": "admin", 
-        "password": "password123"
-    },
-    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
-```
-
-### **Event JSON (After Enrichment)**
-```json
-{
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "timestamp": "2024-10-26T15:30:45.123456",
-    "ip_address": "203.0.113.45",
-    "method": "POST",
-    "endpoint": "/login",
-    "form_data": {"username": "admin", "password": "password123"},
-    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "country": "United States",
-    "region": "California", 
-    "city": "San Francisco",
-    "latitude": 37.7749,
-    "longitude": -122.4194,
-    "isp": "Example ISP Inc",
-    "attack_type": "brute_force",
-    "enriched": 1
-}
-```
-
-### **WebSocket Messages**
-
-**New Event Broadcast:**
-```json
-{
-    "event": "event.new",
-    "data": {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "timestamp": "2024-10-26T15:30:45.123456",
-        "ip": "203.0.113.45",
-        "country": "United States",
-        "city": "San Francisco", 
-        "attack_type": "brute_force",
-        "endpoint": "/login",
-        "latitude": 37.7749,
-        "longitude": -122.4194
-    }
-}
-```
-
-**Event Update Broadcast:**
-```json
-{
-    "event": "event.updated", 
-    "data": {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "updated_fields": {
-            "country": "United States",
-            "isp": "Updated ISP Name", 
-            "enriched": 1
-        },
-        "timestamp": "2024-10-26T15:31:02.456789"
-    }
-}
-```
-
----
-
-## 🧪 Test Transcript Example
-
-```bash
-$ python backend/operator_app.py
-🍯 HONEYPOT OPERATOR DASHBOARD - MODULE D
-==================================================
-⚠️  ⚠️ LAB/EDUCATIONAL USE ONLY - DO NOT EXPOSE TO INTERNET ⚠️
-🔑 Operator Password: honeypot2024!
-🌐 Dashboard URL: http://127.0.0.1:8090/operator
-📊 API Base URL: http://127.0.0.1:8090/api
-📡 WebSocket: ws://127.0.0.1:8090/ws/events
-==================================================
- * Running on http://127.0.0.1:8090
- * Debug mode: off
-
-# In another terminal:
-$ python -c "
-from honeypot.storage import insert_event
-import uuid
-from datetime import datetime
-
-event = {
-    'id': str(uuid.uuid4()),
-    'timestamp': datetime.utcnow().isoformat(),  
-    'ip_address': '198.51.100.42',
-    'country': 'Canada',
-    'city': 'Toronto',
-    'attack_type': 'sql_injection'
-}
-
-insert_event(event)
-print('✅ Sample event inserted')
-"
-
-# Dashboard output:
-📡 Broadcasted new event: 198.51.100.42 -> Canada
-
-# API test:
-$ curl -H "Cookie: session=..." http://127.0.0.1:8090/api/stats
-{
-    "top_ips": [{"ip": "198.51.100.42", "count": 1}],
-    "top_countries": [{"country": "Canada", "count": 1}],
-    "timeline": [{"time": "2024-10-26T15:30:00", "count": 1}],
-    "total_events": 1
-}
-```
-
----
-
 ## 🛡️ Security Best Practices
 
 ### **Deployment Security**
@@ -407,9 +174,6 @@ $ curl -H "Cookie: session=..." http://127.0.0.1:8090/api/stats
 - **Research Ethics**: Follow institutional research ethics guidelines
 
 ---
-
-## 🤝 Contributing & Development
-
 ### **Project Structure**
 ```
 honeypot-project/
@@ -429,25 +193,6 @@ honeypot-project/
 ├── simple_honeypot.py       # Standalone honeypot
 └── requirements.txt         # Dependencies
 ```
-
-### **Development Setup**
-```bash
-# Development installation
-git clone <repository>
-cd honeypot-project
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-
-# Run tests
-python -m pytest tests/ -v
-
-# Code style (optional)
-pip install black flake8
-black . 
-flake8 .
-```
-
 ---
 
 ## 📚 Additional Resources
